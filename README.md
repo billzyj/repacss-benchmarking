@@ -1,6 +1,6 @@
 # Power-aware HPC Benchmarking
 
-This project integrates power profiling capabilities with standard HPC benchmarks to measure and analyze energy consumption during benchmark execution. It provides a comprehensive framework for power-aware performance analysis of HPC systems.
+This project provides standard HPC benchmarks and experiment data for power-aware analysis. It focuses on running and organizing benchmarks and their results; power monitoring and detailed power analysis are handled in a separate repository, [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling).
 
 ## Table of Contents
 - [Prerequisites](#prerequisites)
@@ -39,16 +39,10 @@ This project integrates power profiling capabilities with standard HPC benchmark
 
 ## Features
 
-- Integrated power monitoring with standard HPC benchmarks
-- Support for multiple power monitoring backends:
-  - CPU (Intel RAPL and AMD K10Temp)
-  - GPU (NVIDIA GPUs via NVML, AMD GPUs)
-  - System-level monitoring (IPMI). Redfish/iDRAC in-band removed; use out-of-band iDRAC wrapper.
-- Real-time power consumption tracking
-- Automated data collection and analysis
-- Interactive Jupyter notebook examples
-- Comprehensive power usage statistics and visualization
-- Extensible monitoring framework
+- HPC benchmark runners for OSU micro-benchmarks and HPL
+- Structured storage of raw and processed benchmark results
+- Simple scripts for orchestrating benchmark runs (`scripts/run_benchmark.py`)
+- Companion power-profiling and TimescaleDB-based analysis available via [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling)
 
 ## Requirements
 
@@ -61,18 +55,11 @@ This project integrates power profiling capabilities with standard HPC benchmark
 - jupyter>=1.0.0
 
 ### Monitoring Requirements
-- psutil>=5.8.0 (for CPU monitoring)
-- nvidia-ml-py3>=11.0.0 (for NVIDIA GPU monitoring)
-- pyipmi>=0.11.0 (for IPMI system monitoring)
-- requests>=2.25.0 (for Redfish API monitoring)
-- urllib3>=1.26.0 (for Redfish API monitoring)
-- Intel CPU with RAPL support (for Intel CPU power monitoring)
-- AMD CPU with K10Temp support (for AMD CPU power monitoring)
-- NVIDIA GPU with NVML support (for GPU power monitoring)
-- AMD GPU with appropriate drivers (for AMD GPU power monitoring)
-- IPMI-capable system (for IPMI monitoring)
-- Redfish-compatible system (for Redfish monitoring)
-- Dell iDRAC (for iDRAC monitoring)
+
+Live power monitoring and TimescaleDB-based analysis are no longer implemented in this repository.
+If you need CPU/GPU/system power monitoring or rack-level analysis on REPACSS, use
+[`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling) and follow its
+installation instructions.
 
 ## Installation
 
@@ -122,17 +109,8 @@ After installation, verify your setup:
    pip list  # Verify all required packages are installed
    ```
 
-2. **Verify Hardware Access**
-   ```bash
-   # Check CPU power monitoring access:
-   python -c "from power_profiling.monitors.cpu import IntelMonitor; monitor = IntelMonitor()"
-   
-   # Check GPU access:
-   nvidia-smi
-   
-   # Check IPMI access:
-   ipmitool sensor list
-   ```
+2. **Verify Hardware Access for Benchmarks**
+   Ensure MPI, CUDA (if applicable), and your batch environment are configured correctly (see `docs/benchmarks.md`).
 
 3. **Run Basic Tests**
    ```bash
@@ -147,67 +125,21 @@ For more detailed troubleshooting information, please refer to the [Troubleshoot
 
 ## Quick Start
 
-### Basic Power Monitoring
+### Running Benchmarks
 
-```python
-from power_profiling.monitors.cpu import IntelMonitor, AMDMonitor
-from power_profiling.monitors.gpu import NvidiaGPUMonitor, AMDGPUMonitor
-from power_profiling.monitors.system import IPMIMonitor
-import time
-
-# Initialize monitors based on your hardware
-# CPU monitoring
-cpu_monitor = IntelMonitor(sampling_interval=0.1)  # For Intel CPUs
-# Or
-# cpu_monitor = AMDMonitor(sampling_interval=0.1)  # For AMD CPUs
-
-# GPU monitoring
-gpu_monitor = NvidiaGPUMonitor(sampling_interval=0.1)  # For NVIDIA GPUs
-# Or
-# gpu_monitor = AMDGPUMonitor(sampling_interval=0.1)  # For AMD GPUs
-
-# System monitoring
-system_monitor = IPMIMonitor(sampling_interval=1.0)  # For IPMI-capable systems
-## Redfish/iDRAC in-band monitors were removed. Use IPMI or the out-of-band iDRAC wrapper.
-
-# Start monitoring
-cpu_monitor.start()
-gpu_monitor.start()
-system_monitor.start()
-
-# Run your workload
-time.sleep(5)  # Replace with your actual workload
-
-# Stop monitoring and get data
-cpu_data = cpu_monitor.stop()
-gpu_data = gpu_monitor.stop()
-system_data = system_monitor.stop()
-
-# Get statistics
-cpu_stats = cpu_monitor.get_statistics()
-gpu_stats = gpu_monitor.get_statistics()
-system_stats = system_monitor.get_statistics()
-
-print("CPU Statistics:", cpu_stats)
-print("GPU Statistics:", gpu_stats)
-print("System Statistics:", system_stats)
-```
-
-### Running Benchmarks with Power Monitoring
-
-This project integrates power monitoring with standard HPC benchmarks to measure energy consumption during benchmark execution. To run benchmarks with power monitoring:
+This project focuses on running standard HPC benchmarks and recording their outputs. To run benchmarks:
 
 1. Install the benchmarks following the instructions in [Benchmarks Documentation](docs/benchmarks.md)
-2. Use the provided scripts to run benchmarks with power monitoring:
+2. Use the provided scripts to run benchmarks:
 
 ```bash
-# Run OSU latency test with power monitoring
+# Run OSU latency test
 python scripts/run_benchmark.py --benchmark osu --test latency --duration 60
 
-# Run HPL with power monitoring on Zen4 partition
+# Run HPL on Zen4 partition
 python scripts/run_benchmark.py --benchmark hpl --size 4000 --duration 300 --partition zen4
 
-# Run HPL with power monitoring on H100 partition
+# Run HPL on H100 partition
 python scripts/run_benchmark.py --benchmark hpl --size 2000 --duration 300 --partition h100
 ```
 
@@ -243,109 +175,36 @@ jupyter notebook docs/examples/
 
 ```
 .
-├── src/                          # Source code
-│   ├── benchmarks/              # Benchmark implementations
-│   │   ├── micro/              # Micro-benchmarks
-│   │   │   └── osu/           # OSU Micro-benchmarks
-│   │   └── system/            # System benchmarks
-│   │       └── hpl/           # HPL (High Performance Linpack)
-│   │           ├── install_hpl.sh    # HPL installation script
-│   │           ├── build_zen4.sh     # Build script for Zen4
-│   │           ├── build_h100.sh     # Build script for H100
-│   │           ├── source-2.3/       # HPL source code
-│   │           ├── build-zen4/       # Zen4 build directory
-│   │           └── build-h100/       # H100 build directory
-│   ├── power_profiling/        # Power monitoring tools
-│   │   ├── monitors/          # Power monitoring implementations
-│   │   │   ├── base.py       # Base power monitor class
-│   │   │   ├── cpu.py        # CPU power monitoring (Intel/AMD)
-│   │   │   ├── gpu.py        # GPU power monitoring (NVIDIA/AMD)
-│   │   │   └── system.py     # System power monitoring (IPMI/Redfish/iDRAC)
-│   │   └── utils/            # Power monitoring utilities
-│   │       ├── data_collector.py
-│   │       └── config.py
-│   └── analysis/              # Analysis tools
-│       ├── data_processing/   # Data processing modules
-│       │   ├── loader.py     # Data loading utilities
-│   │   │   └── validator.py  # Data validation
-│   │   ├── visualization/    # Visualization tools
-│   │   │   ├── plots.py     # Plotting functions
-│   │   │   └── reports.py   # Report generation
-│   │   ├── power_analysis.py # Power analysis module
-│   │   └── metrics/         # Performance metrics
-│   │       ├── power.py     # Power-related metrics
-│   │       └── performance.py # Performance metrics
-│   ├── tests/                    # Test suite
-│   │   ├── power_profiling/     # Power monitoring tests
-│   │   │   ├── test_base_monitor.py  # Base monitor tests
-│   │   │   ├── test_cpu_monitor.py   # CPU monitor tests
-│   │   │   ├── test_gpu_monitor.py   # GPU monitor tests
-│   │   │   └── test_system_monitor.py # System monitor tests
-│   │   ├── benchmarks/          # Benchmark tests
-│   │   └── analysis/           # Analysis tools tests
-│   ├── scripts/                 # Utility scripts
-│   │   ├── run_benchmark.py    # Benchmark runner
-│   │   ├── analyze_results.py  # Results analyzer
-│   │   └── test_imports.py    # Import test script
-│   ├── config/                 # Configuration files
-│   │   ├── benchmarks/        # Benchmark configurations
-│   │   │   ├── osu_config.json  # OSU Micro-benchmarks settings
-│   │   │   └── hpl_config.json  # HPL benchmark settings
-│   │   └── power_profiling/   # Power monitoring configurations
-│   │       └── monitoring_config.json  # Power monitoring settings
-│   ├── docs/                  # Documentation
-│   │   ├── api/              # API documentation
-│   │   ├── guides/           # User guides
-│   │   └── examples/         # Example notebooks
-│   │       └── power_monitoring_example.ipynb  # Power monitoring example
-│   ├── results/                # Data storage (gitignored)
-│   │   ├── raw/             # Raw data
-│   │   ├── processed/       # Processed data
-│   │   └── reports/       # Data reports
-│   ├── requirements/         # Python dependencies
-│   │   ├── base.txt        # Base requirements
-│   │   ├── dev.txt         # Development requirements
-│   │   └── test.txt        # Testing requirements
-│   ├── .gitignore          # Git ignore file
-│   └── README.md           # Project documentation
-├── setup.py           # Package setup
-└── LICENSE            # License file
+├── benchmarks/
+│   ├── osu/
+│   │   ├── install_osu.sh        # Install OSU via module / Spack / from source
+│   │   └── run_osu_repacss.sh    # Run OSU on REPACSS (mpirun wrapper)
+│   ├── hpl/
+│   │   ├── install_hpl.sh        # Install HPL via module / Spack / from source
+│   │   └── run_hpl_repacss.sh    # Run HPL on REPACSS (mpirun wrapper)
+│   └── templates/
+│       ├── zen4_batch.sh         # Example Slurm template for Zen4 I/O/CPU benchmarks
+│       └── h100_batch.sh         # Example Slurm template for H100 GPU benchmarks
+├── docs/
+│   ├── benchmarks.md
+│   ├── analysis.md
+│   ├── power_profiling.md        # Points to external power-profiling repo
+│   └── ...
+├── external/
+│   └── Repacss-power-profiling/  # Git submodule with power monitoring/analysis stack
+├── requirements/
+│   ├── base.txt
+│   ├── dev.txt
+│   └── test.txt
+├── setup.py                      # Package setup (for editable installs)
+└── LICENSE
 ```
 
 ## Power Monitoring Details
 
-### CPU Monitoring
-
-The CPU monitor supports both Intel and AMD processors:
-
-- **IntelMonitor**: Uses RAPL (Running Average Power Limit) interface for Intel CPUs
-- **AMDMonitor**: Uses K10Temp interface for AMD CPUs
-- Both inherit from the base **CPUMonitor** class
-
-### GPU Monitoring
-
-The GPU monitor supports both NVIDIA and AMD GPUs:
-
-- **NvidiaGPUMonitor**: Uses NVIDIA's NVML library to collect power consumption, utilization, memory usage, temperature, and clock speeds
-- **AMDGPUMonitor**: Uses AMD's sysfs interface to collect power consumption, temperature, and fan speed
-- Both inherit from the base **GPUMonitor** class
-
-### System Monitoring
-
-The system monitor supports multiple protocols:
-
-- **IPMIMonitor**: Uses IPMI protocol for system power monitoring
-  - Redfish/iDRAC in-band removed; use out-of-band iDRAC via `power_profiling.outofband`.
-- All inherit from the base **SystemMonitor** class
-
-### Power Reading Data Structure
-
-All power readings include:
-
-- Timestamp
-- Power consumption in watts
-- Component-specific metadata
-- Statistical aggregations
+Power monitoring implementations (CPU/GPU/system, IPMI, iDRAC, rack-level aggregation) have been
+moved out of this repository. For power measurement on the REPACSS cluster, including TimescaleDB
+queries and Excel report generation, use [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling).
 
 ## Editable/Development Installation
 
@@ -463,9 +322,8 @@ This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICE
 For more detailed documentation, see:
 
 - [Quick Start Guide](docs/quickstart.md)
-- [Power Profiling Guide](docs/power_profiling.md)
-- [Benchmarks Documentation](docs/benchmarks.md) - Running benchmarks with power monitoring
-- [Analysis Guide](docs/analysis.md)
+- Benchmarks Documentation: `docs/benchmarks.md`
+- Analysis Guide for benchmark data: `docs/analysis.md`
 - [Troubleshooting](docs/troubleshooting.md)
 
 ## Contact
@@ -613,137 +471,7 @@ cat results/metadata/system_info.json
 
 ### Out-of-band iDRAC (REPACSS) Integration
 
-This project integrates an out-of-band path via a git submodule at `external/Repacss-power-profiling` and a thin wrapper in `src/power_profiling/outofband`.
-
-Example usage:
-
-```python
-from power_profiling import IDRACRemoteClient, IDRACQueryParams
-from datetime import datetime, timedelta
-
-client = IDRACRemoteClient(
-    db_host="<db_host>", db_port=5432, database="h100",
-    db_user="<db_user>", db_password="<db_password>",
-    ssh_hostname="<ssh_host>", ssh_port=22, ssh_username="<ssh_user>",
-    ssh_private_key_path="/path/to/id_rsa", schema="idrac",
-)
-
-with client:
-    params = IDRACQueryParams(
-        node_id="node-001",
-        start_time=datetime.utcnow() - timedelta(hours=1),
-        end_time=datetime.utcnow(),
-        limit=100,
-    )
-    rows = client.fetch_computepower(params)
-    print(rows[:3])
-```
-
-Dependencies for this path are included in `requirements/base.txt` (`psycopg2-binary`, `paramiko`, `sshtunnel`).
-
-## Keeping the external submodule up to date
-
-The out-of-band integration lives in `external/Repacss-power-profiling` as a git submodule.
-
-- Initial clone with submodules:
-```bash
-git clone <this-repo>
-cd Power-aware-HPC-benchmarking
-git submodule update --init --recursive
-```
-
-- Pull latest changes including submodules:
-```bash
-git pull --recurse-submodules
-```
-
-- Update the submodule to its latest default branch and record the new commit in this repo:
-```bash
-git submodule update --remote --merge external/Repacss-power-profiling
-git add external/Repacss-power-profiling
-git commit -m "Bump Repacss-power-profiling submodule"
-```
-
-- Pin the submodule to a specific tag or commit:
-```bash
-git -C external/Repacss-power-profiling fetch
-# Option A: pin to a tag
-git -C external/Repacss-power-profiling checkout <tag>
-# Option B: pin to a commit SHA
-git -C external/Repacss-power-profiling checkout <sha>
-
-git add external/Repacss-power-profiling
-git commit -m "Pin Repacss-power-profiling to <tag-or-sha>"
-```
-
-- Inspect current submodule status:
-```bash
-git submodule status
-```
-
-## Using the external repo API
-
-There are two supported ways to consume the out-of-band iDRAC data:
-
-### 1) Preferred: use the wrapper provided by this project
-
-The wrapper handles import paths and exposes a small, stable API.
-
-```python
-from power_profiling import IDRACRemoteClient, IDRACQueryParams
-from datetime import datetime, timedelta
-
-client = IDRACRemoteClient(
-    db_host="<db_host>", db_port=5432, database="h100",
-    db_user="<db_user>", db_password="<db_password>",
-    ssh_hostname="<ssh_host>", ssh_port=22, ssh_username="<ssh_user>",
-    ssh_private_key_path="/path/to/id_rsa", schema="idrac",
-)
-
-with client:
-    params = IDRACQueryParams(
-        node_id="node-001",
-        start_time=datetime.utcnow() - timedelta(hours=1),
-        end_time=datetime.utcnow(),
-        limit=100,
-    )
-    rows = client.fetch_computepower(params)
-    print(rows[:3])
-```
-
-Dependencies for this path are already listed in `requirements/base.txt` (`psycopg2-binary`, `paramiko`, `sshtunnel`).
-
-### 2) Advanced: import the external client directly
-
-If you need full access to the external client, you can import it directly. Since it is vendored as a submodule (not installed), add its `src` to `PYTHONPATH` (or `sys.path`) before importing.
-
-```python
-import os, sys
-project_root = os.path.dirname(os.path.abspath(__file__))
-submodule_src = os.path.join(project_root, "external", "Repacss-power-profiling", "src")
-if submodule_src not in sys.path:
-    sys.path.insert(0, submodule_src)
-
-from core.client import REPACSSPowerClient, DatabaseConfig, SSHConfig
-
-client = REPACSSPowerClient(
-    DatabaseConfig(
-        host="<db_host>", port=5432, database="h100",
-        username="<db_user>", password="<db_password>", ssl_mode="prefer", schema="idrac"
-    ),
-    SSHConfig(
-        hostname="<ssh_host>", port=22, username="<ssh_user>",
-        private_key_path="/path/to/id_rsa", passphrase="", keepalive_interval=60
-    ),
-    schema="idrac",
-)
-
-client.connect()
-try:
-    rows = client.get_computepower_metrics(limit=10)
-    print(rows[:3])
-finally:
-    client.disconnect()
-```
-
-Configuration: the external repo can also generate a config file (see its README). If you prefer, you may follow its docs and use its `config` helper; the wrapper path above does not require that and accepts parameters directly.
+Out-of-band iDRAC access, TimescaleDB queries, and rack-level power validation are now maintained
+exclusively in [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling). Use
+that project’s CLI or Python API to query and analyze power data alongside the benchmark results
+generated here.

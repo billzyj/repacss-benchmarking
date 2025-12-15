@@ -2,7 +2,9 @@
 
 ## Overview
 
-This project integrates power profiling capabilities with standard HPC benchmarks to measure and analyze energy consumption during benchmark execution. It provides a comprehensive framework for power-aware performance analysis of HPC systems.
+This project provides standard HPC benchmarks and organizes their outputs for later analysis. It is
+intended to be used together with a dedicated power profiling and analysis stack such as
+[`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling) on the REPACSS cluster.
 
 ## Documentation Structure
 
@@ -13,10 +15,6 @@ This project integrates power profiling capabilities with standard HPC benchmark
 - [Troubleshooting Guide](troubleshooting.md)
 
 ### 2. Core Components
-- [Power Profiling](power_profiling.md)
-  - CPU Power Monitoring
-  - GPU Power Monitoring
-  - System Power Monitoring
 - [Benchmarks](benchmarks.md)
   - OSU Micro-benchmarks
   - HPL (High Performance Linpack)

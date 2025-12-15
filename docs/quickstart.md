@@ -1,6 +1,8 @@
 # Quick Start Guide
 
-This guide will help you get started with the Power-aware HPC Benchmarking project, focusing on power monitoring capabilities.
+This guide will help you get started with the Power-aware HPC Benchmarking project, focusing on
+running benchmarks and organizing their outputs. Power monitoring itself is handled in a separate
+project, [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling).
 
 ## Prerequisites
 
@@ -51,115 +53,16 @@ This guide will help you get started with the Power-aware HPC Benchmarking proje
 
 ## Basic Usage
 
-### 1. Simple CPU Power Monitoring
+### 1. Run an OSU benchmark
 
-```python
-from src.power_profiling.monitors.cpu import CPUMonitor
-import time
-
-# Create CPU monitor
-cpu_monitor = CPUMonitor(sampling_interval=0.1)  # 100ms sampling interval
-
-# Start monitoring
-cpu_monitor.start()
-
-# Run some CPU-intensive work
-result = 0
-for i in range(10**7):
-    result += i
-
-# Stop monitoring
-cpu_data = cpu_monitor.stop()
-
-# Print statistics
-stats = cpu_monitor.get_statistics()
-print(f"Average Power: {stats['average']:.2f} W")
-print(f"Peak Power: {stats['peak']:.2f} W")
-print(f"Total Energy: {stats['total_energy']:.2f} J")
+```bash
+python scripts/run_benchmark.py --benchmark osu --test latency --duration 60
 ```
 
-### 2. GPU Power Monitoring
+### 2. Run HPL
 
-```python
-from src.power_profiling.monitors.gpu import GPUMonitor
-import time
-
-try:
-    # Create GPU monitor
-    gpu_monitor = GPUMonitor(sampling_interval=0.1)
-    
-    # Start monitoring
-    gpu_monitor.start()
-    
-    # Simulate GPU workload
-    time.sleep(5)
-    
-    # Stop monitoring
-    gpu_data = gpu_monitor.stop()
-    
-    # Print statistics
-    stats = gpu_monitor.get_statistics()
-    print(f"Average Power: {stats['average']:.2f} W")
-    print(f"Peak Power: {stats['peak']:.2f} W")
-    print(f"Total Energy: {stats['total_energy']:.2f} J")
-    
-except ImportError:
-    print("GPU monitoring requires pynvml package and NVIDIA GPU")
-```
-
-### 3. Combined Monitoring
-
-```python
-from src.power_profiling.monitors.base import BasePowerMonitor
-from src.power_profiling.monitors.cpu import CPUMonitor
-from src.power_profiling.monitors.gpu import GPUMonitor
-import time
-
-class CombinedMonitor:
-    def __init__(self):
-        self.monitors = {}
-        
-        # Add CPU monitor
-        self.monitors['cpu'] = CPUMonitor(sampling_interval=0.1)
-        
-        # Try to add GPU monitor
-        try:
-            self.monitors['gpu'] = GPUMonitor(sampling_interval=0.1)
-        except ImportError:
-            print("GPU monitoring not available")
-            
-    def start(self):
-        for monitor in self.monitors.values():
-            monitor.start()
-            
-    def stop(self):
-        data = {}
-        for name, monitor in self.monitors.items():
-            data[name] = monitor.stop()
-        return data
-        
-    def get_statistics(self):
-        stats = {}
-        for name, monitor in self.monitors.items():
-            stats[name] = monitor.get_statistics()
-        return stats
-
-# Usage example
-monitor = CombinedMonitor()
-monitor.start()
-
-# Run your workload
-time.sleep(5)
-
-# Get results
-data = monitor.stop()
-stats = monitor.get_statistics()
-
-for component, component_stats in stats.items():
-    print(f"\n{component.upper()} Statistics:")
-    print(f"Average Power: {component_stats['average']:.2f} W")
-    print(f"Peak Power: {component_stats['peak']:.2f} W")
-    print(f"Total Energy: {component_stats['total_energy']:.2f} J")
+```bash
+python scripts/run_benchmark.py --benchmark hpl --size 4000 --duration 300 --partition zen4
 ```
 
 ## Interactive Examples
@@ -176,8 +79,8 @@ jupyter notebook docs/examples/
 
 ## Next Steps
 
-- Read the [Power Profiling Guide](power_profiling.md) for detailed information about power monitoring capabilities
-- Check the [Analysis Guide](analysis.md) for information about analyzing power data
+- Use [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling) to collect and analyze power data for your runs
+- Check the [Analysis Guide](analysis.md) for information about analyzing benchmark data (and external power data)
 - See [Troubleshooting](troubleshooting.md) if you encounter any issues
 - Explore the example notebooks for more advanced usage scenarios
 

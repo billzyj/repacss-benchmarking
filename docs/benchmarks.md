@@ -2,30 +2,33 @@
 
 ## Overview
 
-This project integrates power profiling with standard HPC benchmarks to measure and analyze energy consumption during benchmark execution. The benchmarks included in this project are:
+This project provides standard HPC benchmarks and organizes their outputs for later analysis.
+The benchmarks included in this project are:
 
 1. OSU Micro-benchmarks - For measuring communication performance
 2. HPL (High Performance Linpack) - For measuring system performance
 
-## Directory Structure
+## Getting the benchmarks
 
-```
-results/                # Output directory for all benchmark results
-├── raw/               # Raw benchmark outputs and power monitoring data
-│   ├── power_data_*.json     # Power monitoring data files
-│   └── benchmark_*.txt       # Benchmark result files
-├── processed/         # Processed results and analysis
-│   ├── power/        # Processed power data
-│   ├── benchmarks/   # Processed benchmark results
-│   └── reports/      # Analysis reports
-└── reports/          # Generated visualizations and final reports
-```
+Benchmark **binaries are not vendored** in this repository. On REPACSS they are typically provided by:
 
-## Running Benchmarks
+- **Environment modules** (preferred):
+  ```bash
+  module load osu-micro-benchmarks
+  module load hpl
+  ```
 
-By default, all benchmark results are stored in the `results/raw` directory. Each run creates:
-1. A power monitoring data file (`power_data_<timestamp>.json`)
-2. A benchmark results file (`<benchmark>_<timestamp>.txt`)
+- **Spack**:
+  ```bash
+  spack install osu-micro-benchmarks
+  spack install hpl
+  spack load osu-micro-benchmarks
+  spack load hpl
+  ```
+
+This project provides per-benchmark configuration files next to each benchmark
+(`benchmarks/osu/config.json`, `benchmarks/hpl/config.json`) and template batch scripts
+(`benchmarks/templates/*.sh`) that assume these modules/Spack packages are available on REPACSS.
 
 ## OSU Micro-benchmarks
 
@@ -40,17 +43,9 @@ The OSU Micro-benchmarks suite is a collection of benchmarks designed to measure
 
 ### Installation
 
-```bash
-# Create a build directory
-mkdir -p benchmarks/micro/osu/build
-cd benchmarks/micro/osu/build
-
-# Configure the build with VPATH
-../configure
-
-# Build the benchmarks
-make
-```
+On REPACSS, OSU is normally provided via a module or Spack as shown above. If you need a custom
+build for research, build a separate local copy outside this repository and adjust your batch
+scripts accordingly.
 
 ### Available Tests
 
@@ -62,15 +57,18 @@ The OSU Micro-benchmarks suite includes numerous tests. Here are some of the mos
 4. **Broadcast Test** (`osu_broadcast`): Measures the performance of the MPI_Broadcast operation
 5. **Alltoall Test** (`osu_alltoall`): Measures the performance of the MPI_Alltoall operation
 
-### Running OSU Benchmarks with Power Monitoring
+### Running OSU Benchmarks
+
+Once the OSU binaries are on your `PATH` (via module or Spack), you can run them directly in your
+job scripts, for example:
 
 ```bash
-# Run latency test with power monitoring
-python scripts/run_benchmark.py --benchmark osu --test latency --duration 60
-
-# Run bandwidth test with power monitoring
-python scripts/run_benchmark.py --benchmark osu --test bandwidth --duration 60
+mpirun -np 2 osu_latency
+mpirun -np 2 osu_bw
 ```
+
+Use this repository’s configs and batch scripts as examples for how to structure runs for data
+collection, but rely on the cluster-provided OSU installation.
 
 ### Understanding OSU Results
 
@@ -105,13 +103,11 @@ Example output:
 1048576         161.82
 ```
 
-### Power-Performance Analysis for OSU
+### Analysis for OSU
 
-When running OSU benchmarks with power monitoring, you can analyze:
-
-1. **Communication Efficiency**: How much power is consumed per unit of communication
-2. **Scaling Behavior**: How power consumption scales with message size
-3. **Protocol Transitions**: Power spikes during protocol transitions (e.g., from eager to rendezvous)
+You can combine OSU performance data from this repository with external power data (for example,
+from [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling)) to perform
+power-performance studies such as communication efficiency and scaling behavior.
 
 ## HPL (High Performance Linpack)
 
@@ -121,17 +117,8 @@ HPL (High Performance Linpack) is a benchmark used to evaluate the performance o
 
 ### Installation
 
-```bash
-# Create a build directory
-mkdir -p benchmarks/system/hpl/build
-cd benchmarks/system/hpl/build
-
-# Configure the build with VPATH
-../configure
-
-# Build HPL
-make
-```
+On REPACSS, HPL is normally provided via a module or Spack as shown above. If you need a custom
+HPL build, do so outside this repository and point your job scripts to that build.
 
 ### Configuration
 
@@ -177,12 +164,16 @@ HPL.out      output file name (if any)
 8            memory alignment in double (> 0)
 ```
 
-### Running HPL with Power Monitoring
+### Running HPL
+
+After loading HPL via module or Spack, typical runs look like:
 
 ```bash
-# Run HPL with power monitoring
-python scripts/run_benchmark.py --benchmark hpl --size 1000 --duration 300
+mpirun -np <P*Q> xhpl
 ```
+
+Use your site’s recommended `HPL.dat` templates for Zen4 / H100 or adapt examples provided by
+the REPACSS admins.
 
 ### Understanding HPL Results
 
@@ -251,199 +242,17 @@ End of Tests.
 ================================================================================
 ```
 
-### Power-Performance Analysis for HPL
+### Analysis for HPL
 
-When running HPL with power monitoring, you can analyze:
-
-1. **Power-Performance Efficiency**: Gflops per watt
-2. **Scaling Behavior**: How power consumption scales with problem size
-3. **Algorithm Phases**: Power consumption during different phases of the algorithm (factorization, solve)
-4. **Process Grid Impact**: How different process grids affect power consumption
+You can combine HPL performance data from this repository with external power data (for example,
+from [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling)) to analyze
+Gflops per watt, scaling behavior, and phase-wise efficiency.
 
 ## Benchmark Integration
 
-### Running Multiple Benchmarks
-
-You can run multiple benchmarks in sequence to gather comprehensive power-performance data:
-
-```python
-from power_profiling import IntelMonitor, AMDMonitor, NvidiaGPUMonitor, AMDGPUMonitor, IPMIMonitor
-import time
-import json
-from datetime import datetime
-import subprocess
-
-def run_benchmark_suite(output_dir='data/raw'):
-    # Initialize monitors
-    cpu_monitor = IntelMonitor()  # or AMDMonitor() depending on your CPU
-    gpu_monitor = NvidiaGPUMonitor()  # or AMDGPUMonitor() depending on your GPU
-    system_monitor = IPMIMonitor()
-    
-    # Run OSU latency test
-    run_osu_benchmark('latency', duration=60, output_dir=output_dir)
-    
-    # Run OSU bandwidth test
-    run_osu_benchmark('bandwidth', duration=60, output_dir=output_dir)
-    
-    # Run HPL
-    run_hpl_benchmark(1000, duration=300, output_dir=output_dir)
-    
-    print("Benchmark suite completed successfully")
-
-# Run the benchmark suite
-run_benchmark_suite()
-```
-
-### Customizing Benchmark Parameters
-
-You can customize benchmark parameters to suit your needs:
-
-#### OSU Benchmarks
-
-```python
-def run_osu_benchmark(test_name, duration=60, output_dir='data/raw', np=2):
-    # Initialize monitors
-    cpu_monitor = IntelMonitor()  # or AMDMonitor() depending on your CPU
-    gpu_monitor = NvidiaGPUMonitor()  # or AMDGPUMonitor() depending on your GPU
-    system_monitor = IPMIMonitor()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Start monitoring
-    cpu_monitor.start()
-    gpu_monitor.start()
-    system_monitor.start()
-    
-    try:
-        # Run OSU benchmark with custom number of processes
-        cmd = f"mpirun -np {np} ./benchmarks/micro/osu/build/osu_{test_name}"
-        process = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        # Wait for the specified duration
-        time.sleep(duration)
-        process.terminate()
-        
-        # Capture output
-        stdout, stderr = process.communicate()
-        
-        # Save benchmark results
-        with open(f'{output_dir}/osu_{test_name}_{timestamp}.txt', 'w') as f:
-            f.write(stdout.decode())
-            
-    finally:
-        # Stop monitoring and collect data
-        cpu_data = cpu_monitor.stop()
-        gpu_data = gpu_monitor.stop()
-        system_data = system_monitor.stop()
-        
-        # Save power data
-        power_data = {
-            'timestamp': timestamp,
-            'benchmark': f'osu_{test_name}',
-            'np': np,
-            'cpu_power': cpu_data,
-            'gpu_power': gpu_data,
-            'system_power': system_data
-        }
-        
-        with open(f'{output_dir}/power_data_osu_{test_name}_{timestamp}.json', 'w') as f:
-            json.dump(power_data, f, indent=2)
-            
-    return power_data
-```
-
-#### HPL
-
-```python
-def run_hpl_benchmark(problem_size, block_size=128, p=2, q=2, duration=300, output_dir='data/raw'):
-    # Create custom HPL.dat file
-    hpl_dat = f"""HPLinpack benchmark input file
-Innovative Computing Laboratory, University of Tennessee
-HPL.out      output file name (if any)
-6            device out (6=stdout,7=stderr,file)
-1            # of problems sizes (N)
-{problem_size}         Ns
-1            # of NBs
-{block_size}          NBs
-0            PMAP process mapping (0=Row-,1=Column-major)
-1            # of process grids (P x Q)
-{p}            Ps
-{q}            Qs
-16.0         threshold
-1            # of panel fact
-2            PFACTs (0=left, 1=Crout, 2=Right)
-1            # of recursive stopping criterium
-4            NBMINs (>= 1)
-1            # of panels in recursion
-2            NDIVs
-1            # of recursive panel fact.
-1            RFACTs (0=left, 1=Crout, 2=Right)
-1            # of broadcast
-1            BCASTs (0=1rg,1=1rM,2=2rg,3=2rM,4=Lng,5=LnM)
-1            # of lookahead depth
-1            DEPTHs (>=0)
-2            SWAP (0=bin-exch,1=long,2=mix)
-64           swapping threshold
-0            L1 in (0=transposed,1=no-transposed) form
-0            U  in (0=transposed,1=no-transposed) form
-1            Equilibration (0=no,1=yes)
-8            memory alignment in double (> 0)
-"""
-    
-    # Write HPL.dat file
-    with open('benchmarks/system/hpl/build/HPL.dat', 'w') as f:
-        f.write(hpl_dat)
-    
-    # Initialize monitors
-    cpu_monitor = IntelMonitor()  # or AMDMonitor() depending on your CPU
-    gpu_monitor = NvidiaGPUMonitor()  # or AMDGPUMonitor() depending on your GPU
-    system_monitor = IPMIMonitor()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Start monitoring
-    cpu_monitor.start()
-    gpu_monitor.start()
-    system_monitor.start()
-    
-    try:
-        # Run HPL
-        cmd = f"mpirun -np {p*q} ./benchmarks/system/hpl/build/xhpl"
-        process = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        # Wait for the specified duration
-        time.sleep(duration)
-        process.terminate()
-        
-        # Capture output
-        stdout, stderr = process.communicate()
-        
-        # Save benchmark results
-        with open(f'{output_dir}/hpl_{timestamp}.txt', 'w') as f:
-            f.write(stdout.decode())
-            
-    finally:
-        # Stop monitoring and collect data
-        cpu_data = cpu_monitor.stop()
-        gpu_data = gpu_monitor.stop()
-        system_data = system_monitor.stop()
-        
-        # Save power data
-        power_data = {
-            'timestamp': timestamp,
-            'benchmark': 'hpl',
-            'problem_size': problem_size,
-            'block_size': block_size,
-            'p': p,
-            'q': q,
-            'cpu_power': cpu_data,
-            'gpu_power': gpu_data,
-            'system_power': system_data
-        }
-        
-        with open(f'{output_dir}/power_data_hpl_{timestamp}.json', 'w') as f:
-            json.dump(power_data, f, indent=2)
-            
-    return power_data
-```
+You can run multiple benchmarks in sequence using `scripts/run_benchmark.py` or your own orchestration
+scripts, and then combine the resulting performance data with external power measurements
+(`Repacss-power-profiling`) for full power-performance analysis.
 
 ## Best Practices
 

@@ -2,7 +2,8 @@
 
 ## Overview
 
-This document describes the analysis tools and methodologies used to process and visualize power-performance data collected from HPC benchmarks. The analysis pipeline includes:
+This document describes the analysis tools and methodologies used to process and visualize benchmark
+results (and, optionally, external power data) collected from HPC runs. The analysis pipeline includes:
 
 1. Data loading and preprocessing
 2. Statistical analysis
@@ -13,33 +14,8 @@ This document describes the analysis tools and methodologies used to process and
 
 ### Power Monitoring Data
 
-Power monitoring data is stored in JSON format with the following structure:
-
-```json
-{
-    "timestamp": "20240321_123456",
-    "benchmark": "osu_latency",
-    "parameters": {
-        "np": 2,
-        "duration": 60
-    },
-    "cpu_power": [
-        {"timestamp": "2024-03-21T12:34:56", "power": 45.2},
-        {"timestamp": "2024-03-21T12:34:57", "power": 46.1},
-        ...
-    ],
-    "gpu_power": [
-        {"timestamp": "2024-03-21T12:34:56", "power": 120.5},
-        {"timestamp": "2024-03-21T12:34:57", "power": 121.2},
-        ...
-    ],
-    "system_power": [
-        {"timestamp": "2024-03-21T12:34:56", "power": 250.3},
-        {"timestamp": "2024-03-21T12:34:57", "power": 251.1},
-        ...
-    ]
-}
-```
+If you collect power data (for example, using [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling)),
+you can adapt the loader functions below to the JSON/CSV format produced by that project.
 
 ### Benchmark Results
 
@@ -76,24 +52,28 @@ import json
 from pathlib import Path
 
 def load_power_data(file_path):
-    """Load power monitoring data from JSON file."""
+    """Load power monitoring data from JSON/CSV file.
+
+    This function is a template; adjust column names/structure to match your power data source
+    (for example, the outputs of `Repacss-power-profiling`).
+    """
     with open(file_path, 'r') as f:
         data = json.load(f)
-    
-    # Convert to pandas DataFrames
-    cpu_df = pd.DataFrame(data['cpu_power'])
-    gpu_df = pd.DataFrame(data['gpu_power'])
-    system_df = pd.DataFrame(data['system_power'])
-    
-    # Convert timestamps to datetime
+
+    # Expect keys like 'cpu_power', 'gpu_power', 'system_power'; adapt as needed.
+    cpu_df = pd.DataFrame(data.get('cpu_power', []))
+    gpu_df = pd.DataFrame(data.get('gpu_power', []))
+    system_df = pd.DataFrame(data.get('system_power', []))
+
     for df in [cpu_df, gpu_df, system_df]:
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
+        if not df.empty and 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+
     return {
         'metadata': {k: v for k, v in data.items() if k not in ['cpu_power', 'gpu_power', 'system_power']},
         'cpu_power': cpu_df,
         'gpu_power': gpu_df,
-        'system_power': system_df
+        'system_power': system_df,
     }
 
 def load_osu_results(file_path):
