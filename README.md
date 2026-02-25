@@ -1,477 +1,288 @@
-# Power-aware HPC Benchmarking
+# REPACSS Benchmarking
 
-This project provides standard HPC benchmarks and experiment data for power-aware analysis. It focuses on running and organizing benchmarks and their results; power monitoring and detailed power analysis are handled in a separate repository, [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling).
+Benchmark orchestration repository for CPU/GPU/HPC workloads, with a REPACSS-first execution path and a clean extension path to other data centers.
 
-## Table of Contents
-- [Prerequisites](#prerequisites)
-- [Features](#features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Project Structure](#project-structure)
-- [Power Monitoring Details](#power-monitoring-details)
-- [Contributing](#contributing)
-- [License](#license)
-- [Documentation](#documentation)
-- [Contact](#contact)
+This repository is intentionally **benchmarking-focused**.
+Power telemetry, infrastructure queries, and rack/system power analysis are handled externally.
 
-## Prerequisites
+## Scope
 
-### Hardware Requirements
-- CPU: Intel CPU with RAPL support or AMD CPU with K10Temp support
-- GPU (optional): NVIDIA GPU with NVML support or AMD GPU with appropriate drivers
-- System (optional): IPMI-capable system or Dell server with iDRAC
+What this repository owns:
+- Benchmark launch scripts and benchmark-specific wrappers
+- REPACSS-oriented run templates (Slurm + module/spack/source workflows)
+- Result organization for benchmark performance runs
+- A migration path to config-driven benchmark orchestration
+- A script-first layout (no Python package installation layer)
 
-### Software Requirements
-- Linux operating system
-- Python 3.8 or higher
-- Root access (for power monitoring)
-- MPI implementation (OpenMPI, MPICH, or MVAPICH2)
-- CUDA toolkit (for GPU monitoring)
+What this repository does not own:
+- In-band or out-of-band power profiling pipelines
+- TimescaleDB and infrastructure power query workflows
+- Data center specific power monitoring stacks
+- Python packaging metadata for editable installs (`setup.py`, `requirements/`)
 
-### Version Compatibility
-| Component | Minimum Version | Recommended Version |
-|-----------|----------------|-------------------|
-| Python | 3.8 | 3.10 |
-| CUDA | 11.0 | 11.7 |
-| OpenMPI | 4.0 | 4.1 |
-| IPMI | 2.0 | 2.0 |
+For power workflows, use the external project:
+- `external/Repacss-power-profiling` (submodule)
+- Upstream: <https://github.com/billzyj/Repacss-power-profiling>
 
-## Features
+## Design Strategy
 
-- HPC benchmark runners for OSU micro-benchmarks and HPL
-- Structured storage of raw and processed benchmark results
-- Simple scripts for orchestrating benchmark runs (`scripts/run_benchmark.py`)
-- Companion power-profiling and TimescaleDB-based analysis available via [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling)
+The key design decision is to separate stable experiment intent from data-center-specific execution details.
 
-## Requirements
+### 1. Experiment Contract (portable)
+Define *what* to run:
+- benchmark id and input scale
+- policy id (`max_freq`, `everest`, `oracle_static`, etc.)
+- target constraints (`pd_target`, repetitions, warmup, window)
+- required output metrics (`runtime`, `perf_rel`, `power_rel`, `energy_rel`)
 
-### Core Requirements
-- Python 3.8+
-- numpy>=1.19.0
-- pandas>=1.2.0
-- matplotlib>=3.3.0
-- seaborn>=0.11.0
-- jupyter>=1.0.0
+This layer should stay stable across REPACSS, AMD test nodes, and future data centers.
 
-### Monitoring Requirements
+### 2. Site Profile (replaceable)
+Define *how this site runs jobs*:
+- scheduler templates and partition/account defaults
+- node shape (for example `4xH100`)
+- software resolution priority (`module -> spack -> source`)
+- site paths, module names, launcher conventions
+- vendor backend selection hooks (NVIDIA vs AMD)
 
-Live power monitoring and TimescaleDB-based analysis are no longer implemented in this repository.
-If you need CPU/GPU/system power monitoring or rack-level analysis on REPACSS, use
-[`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling) and follow its
-installation instructions.
+This layer is where REPACSS-specific details live.
+Site profiles are stored under `sites/*.yaml`.
 
-## Installation
+### 3. Workload Adapter (benchmark-specific)
+Each benchmark adapter should expose a minimal lifecycle:
+- `prepare()` resolve executable via module/spack/source
+- `run()` render and execute launch command
+- `parse()` normalize output into a common result schema
 
-1. Clone the repository:
+This lets you add benchmarks without coupling them to every site implementation.
+
+### 4. External Integrations (optional)
+Power is integrated as an external dependency, not embedded into benchmark runners.
+
+## Benchmark Taxonomy (Three-layer)
+
+Benchmark classification now follows three independent layers:
+- `object`: what the artifact is (`benchmark`, `suite`, `ranking`, `tool`)
+- `semantics`: what it measures (`scope`, `target_subsystems`, `workload_nature`, domain/method tags)
+- `execution`: how it runs (`benchmark_scale`, programming model, primary metrics, portability)
+
+Why this matters:
+- avoids mixing workload benchmarks with tools/rankings
+- supports both REPACSS-first execution and cross-site portability
+- keeps classification queryable for run-plan generation
+
+Detailed guide:
+- `docs/guides/benchmark_taxonomy.md`
+
+Catalog files:
+- `catalog/benchmarks.yaml`
+- `catalog/taxonomy.schema.yaml`
+
+## Catalog and Experiment Subsets
+
+Use a three-file pattern:
+- `catalog/benchmarks.yaml`: full benchmark registry (all supported benchmarks)
+- `experiments/*.yaml`: run-time subset and matrix for a specific study
+- `sites/*.yaml`: data-center-specific execution profiles
+
+This keeps benchmark metadata stable while allowing each experiment to select only a subset and bind one site profile.
+
+Recommended selection keys in an experiment file:
+- `include_ids`: explicit benchmark ids to include
+- `filters`: taxonomy-based filter conditions
+- `exclude_ids`: ids to remove after include/filter
+
+Conflict resolution:
+1. Start from `include_ids` if provided; otherwise start from all catalog entries.
+2. Apply `filters`.
+3. Apply `exclude_ids` last (highest priority).
+
+Example:
+
+```yaml
+name: core_io_network
+site_profile: repacss_zen4
+
+benchmark_selection:
+  include_ids: [ior, osu, hpl]
+  filters:
+    scope: component
+    target_subsystems_any: [storage, network]
+  exclude_ids: [quantum_espresso]
+
+run_matrix:
+  repeats: 5
+  warmup: 1
+  policies: [max_freq, everest]
+```
+
+## Architecture Check (Current)
+
+Current structure is now aligned to the separation-of-concerns goal:
+- `catalog/` = machine-readable benchmark registry and taxonomy vocabulary
+- `experiments/` = run subset and matrix definitions
+- `sites/` = site-specific scheduler/environment/runtime defaults
+- `benchmarks/` = executable benchmark wrappers and install/run helpers
+- `docs/guides/` = human-readable design rules
+
+Remaining optimization target:
+- move per-site execution details out of benchmark entries (`catalog/benchmarks.yaml`) into adapters plus `sites/` resolution rules over time.
+
+## Repository Layout (Current)
+
+| Path | Purpose | Design Mapping |
+|---|---|---|
+| `catalog/` | Machine-readable benchmark registry and taxonomy vocabulary. | Experiment Contract + Taxonomy |
+| `catalog/benchmarks.yaml` | Full list of supported benchmarks and their normalized metadata. | Experiment Contract |
+| `catalog/taxonomy.schema.yaml` | Controlled vocabulary for fields/enums used by benchmark entries. | Taxonomy Governance |
+| `experiments/` | Run-specific subset definitions and parameter matrices. | Experiment Contract (run instance) |
+| `experiments/core_subset.yaml` | Example subset selecting benchmarks and run matrix values. | Experiment Selection |
+| `sites/` | Site-specific execution profiles with scheduler/runtime defaults. | Site Profile |
+| `sites/repacss_h100.yaml` | REPACSS GPU-node defaults (partition/resources/runtime backend). | Site Profile |
+| `sites/repacss_zen4.yaml` | REPACSS CPU-node defaults (partition/resources/runtime backend). | Site Profile |
+| `benchmarks/` | Benchmark adapters and helper scripts for prepare/run behavior. | Workload Adapter |
+| `benchmarks/hpl/`, `benchmarks/osu/`, `benchmarks/ior/`, `benchmarks/lammps/` | Per-benchmark scripts for installation/run entry points. | Workload Adapter |
+| `benchmarks/templates/` | Reusable Slurm template scripts for REPACSS partitions. | Site Profile Integration |
+| `docs/guides/benchmark_taxonomy.md` | Human-readable design rules and classification principles. | Design Documentation |
+| `external/Repacss-power-profiling/` | External submodule for power/infrastructure telemetry workflows. | External Integration |
+| `README.md` | Repository-wide architecture, scope, and usage entry point. | Governance + Onboarding |
+
+## REPACSS Quick Start (Run Now)
+
+### Prerequisites
+- Slurm access on REPACSS
+- MPI runtime available on target partition
+- Benchmark binaries available by one of:
+  - module
+  - spack
+  - source build in user space
+
+### Install Helpers
+
+OSU:
 ```bash
-git clone https://github.com/yourusername/Power-aware-HPC-benchmarking.git
-cd Power-aware-HPC-benchmarking
+bash benchmarks/osu/install_osu.sh module
+# or
+bash benchmarks/osu/install_osu.sh spack
+# or
+bash benchmarks/osu/install_osu.sh source
 ```
 
-2. Create and activate a virtual environment:
+HPL:
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+bash benchmarks/hpl/install_hpl.sh module
+# or
+bash benchmarks/hpl/install_hpl.sh spack
+# or
+bash benchmarks/hpl/install_hpl.sh source
 ```
 
-3. Install dependencies (all requirements files are in the `requirements/` folder):
+### Run IOR on Zen4
 
-- **For users:**
-  ```bash
-  pip install -r requirements/base.txt
-  ```
-- **For developers:**
-  ```bash
-  pip install -r requirements/base.txt
-  pip install -r requirements/dev.txt
-  ```
-- **For testers:**
-  ```bash
-  pip install -r requirements/base.txt
-  pip install -r requirements/test.txt
-  ```
+`benchmarks/ior/run_ior_repacss.sh` is a complete Slurm batch job.
+Before submission, ensure these directories are set in your shell or directly in the script:
+- `MEM_IO`
+- `LOCAL_IO`
+- `NFS_IO`
 
-> **Tip:** If you want a full development and testing environment, install all three in sequence.
-
-The requirements files are structured as follows:
-- `requirements/base.txt` - Core dependencies for running the project
-- `requirements/dev.txt` - Additional tools for development (requires base)
-- `requirements/test.txt` - Dependencies for running tests (requires base)
-
-### Verification Steps
-
-After installation, verify your setup:
-
-1. **Check Python Environment**
-   ```bash
-   python --version  # Should be 3.8 or higher
-   pip list  # Verify all required packages are installed
-   ```
-
-2. **Verify Hardware Access for Benchmarks**
-   Ensure MPI, CUDA (if applicable), and your batch environment are configured correctly (see `docs/benchmarks.md`).
-
-3. **Run Basic Tests**
-   ```bash
-   # Run the test suite:
-   pytest tests/
-   
-   # Run a simple benchmark:
-   python scripts/run_benchmark.py --benchmark osu --test latency --duration 10
-   ```
-
-For more detailed troubleshooting information, please refer to the [Troubleshooting Guide](docs/troubleshooting.md).
-
-## Quick Start
-
-### Running Benchmarks
-
-This project focuses on running standard HPC benchmarks and recording their outputs. To run benchmarks:
-
-1. Install the benchmarks following the instructions in [Benchmarks Documentation](docs/benchmarks.md)
-2. Use the provided scripts to run benchmarks:
-
+Submit:
 ```bash
-# Run OSU latency test
-python scripts/run_benchmark.py --benchmark osu --test latency --duration 60
-
-# Run HPL on Zen4 partition
-python scripts/run_benchmark.py --benchmark hpl --size 4000 --duration 300 --partition zen4
-
-# Run HPL on H100 partition
-python scripts/run_benchmark.py --benchmark hpl --size 2000 --duration 300 --partition h100
+sbatch benchmarks/ior/run_ior_repacss.sh
 ```
 
-For detailed information on available benchmarks, configuration options, and interpreting results, please refer to the [Benchmarks Documentation](docs/benchmarks.md).
+### Run LAMMPS on Zen4
 
-### Interactive Examples
-
-The project includes Jupyter notebooks with comprehensive examples, located in `docs/examples/`:
-
-1. Basic Power Monitoring (`docs/examples/basic_power_monitoring.ipynb`):
-   - Setting up power monitors
-   - Basic CPU and GPU monitoring
-   - Collecting and visualizing power data
-   - Basic statistics and analysis
-
-2. Advanced Usage (`docs/examples/advanced_usage.ipynb`):
-   - Custom power monitor implementation
-   - Integration with HPC workloads
-   - Advanced data analysis
-   - Power-aware optimization
-   - Report generation
-
-3. Power Monitoring Example (`docs/examples/power_monitoring_example.ipynb`):
-   - Additional demonstration of power monitoring features
-
-To run the examples:
-
+Submit:
 ```bash
-jupyter notebook docs/examples/
+sbatch benchmarks/lammps/run_lammps_repacss.sh
 ```
 
-## Project Structure
+Notes:
+- Script currently expects LAMMPS from Spack (`spack load lammps`)
+- Script currently uses `~/data` as working directory
 
-```
-.
-├── benchmarks/
-│   ├── osu/
-│   │   ├── install_osu.sh        # Install OSU via module / Spack / from source
-│   │   └── run_osu_repacss.sh    # Run OSU on REPACSS (mpirun wrapper)
-│   ├── hpl/
-│   │   ├── install_hpl.sh        # Install HPL via module / Spack / from source
-│   │   └── run_hpl_repacss.sh    # Run HPL on REPACSS (mpirun wrapper)
-│   └── templates/
-│       ├── zen4_batch.sh         # Example Slurm template for Zen4 I/O/CPU benchmarks
-│       └── h100_batch.sh         # Example Slurm template for H100 GPU benchmarks
-├── docs/
-│   ├── benchmarks.md
-│   ├── analysis.md
-│   ├── power_profiling.md        # Points to external power-profiling repo
-│   └── ...
-├── external/
-│   └── Repacss-power-profiling/  # Git submodule with power monitoring/analysis stack
-├── requirements/
-│   ├── base.txt
-│   ├── dev.txt
-│   └── test.txt
-├── setup.py                      # Package setup (for editable installs)
-└── LICENSE
-```
+### Run HPL
 
-## Power Monitoring Details
+`benchmarks/hpl/run_hpl_repacss.sh` is a launcher wrapper (not a full Slurm script).
+Use it inside an allocation or from your own batch script.
 
-Power monitoring implementations (CPU/GPU/system, IPMI, iDRAC, rack-level aggregation) have been
-moved out of this repository. For power measurement on the REPACSS cluster, including TimescaleDB
-queries and Excel report generation, use [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling).
-
-## Editable/Development Installation
-
-If you want to work on the source code and have changes reflected immediately (without reinstalling), you can use the provided `setup.py` for an editable install:
-
+Example:
 ```bash
-pip install -e .
+# inside an allocated job shell
+module load hpl
+bash benchmarks/hpl/run_hpl_repacss.sh 4 /path/to/HPL.dat
 ```
 
-> **Note:** This only installs the package itself. You should still install dependencies using the requirements files as described above:
-> - `pip install -r requirements/base.txt` (and dev.txt/test.txt as needed)
+### Run OSU
 
-This approach is recommended for developers contributing to the project.
+`benchmarks/osu/run_osu_repacss.sh` is a launcher wrapper.
 
-## Contributing
-
-We welcome contributions to the Power-aware HPC Benchmarking project! Here's how you can help:
-
-### Development Setup
-
-1. Fork the repository
-2. Create a feature branch:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-3. Install development dependencies:
-   ```bash
-   pip install -r requirements/base.txt
-   pip install -r requirements/dev.txt
-   pip install -r requirements/test.txt
-   ```
-4. Install the package in editable mode:
-   ```bash
-   pip install -e .
-   ```
-
-### Coding Style
-
-- Follow PEP 8 guidelines
-- Use type hints for function arguments and return values
-- Write docstrings for all public functions and classes
-- Keep functions focused and small
-- Use meaningful variable names
-- Add comments for complex logic
-
-### Testing
-
-- Write unit tests for new features
-- Ensure all tests pass before submitting
-- Maintain or improve test coverage
-- Run the full test suite:
-  ```bash
-  pytest tests/
-  ```
-
-### Pull Request Process
-
-1. Update documentation if needed
-2. Add tests for new features
-3. Ensure all tests pass
-4. Update the changelog
-5. Create a pull request with a clear description
-
-### Issue Reporting
-
-When reporting issues, please include:
-- Operating system and version
-- Python version
-- Hardware configuration
-- Error messages and stack traces
-- Steps to reproduce
-- Expected vs actual behavior
-
-### Pull Request Template
-
-```markdown
-## Description
-[Describe your changes here]
-
-## Related Issue
-[Link to related issue]
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation update
-- [ ] Performance improvement
-- [ ] Code refactoring
-
-## Testing
-- [ ] Unit tests added/updated
-- [ ] All tests passing
-- [ ] Manual testing performed
-
-## Documentation
-- [ ] README updated
-- [ ] API documentation updated
-- [ ] Code comments added/updated
+Example:
+```bash
+# inside an allocated job shell
+module load osu-micro-benchmarks
+bash benchmarks/osu/run_osu_repacss.sh osu_latency 2
 ```
 
-### Code of Conduct
+## Current vs Target Output Contract
 
-- Be respectful and inclusive
-- Focus on what is best for the community
-- Show empathy towards other community members
-- Accept constructive criticism gracefully
-- Help maintain a positive and productive environment
+Current state:
+- Slurm stdout/stderr (`slurm-*.out`, `slurm-*.err`)
+- Benchmark native logs (for example IOR warm/cold logs)
+
+Target state (recommended contract for future orchestration):
+- `meta.json`
+- `telemetry.csv`
+- `decisions.csv`
+- `summary.json`
+- aggregated `results.csv`
+
+This contract is recommended so new policies/methods can be added without changing analysis code.
+
+## REPACSS-First, Then Portable
+
+To avoid over-abstracting too early, use a phased approach:
+
+### Phase A (immediate)
+- Run on existing REPACSS H100/Zen4 resources
+- Start with easiest benchmarks already available via modules
+- Validate end-to-end run reliability and output collection
+
+### Phase B
+- Fill missing benchmark install paths (spack/source)
+- Expand benchmark coverage gradually
+- Start introducing config-driven matrix expansion
+
+### Phase C
+- Add AMD test node profile
+- Reuse same experiment contract for cross-vendor runs
+- Keep power as optional external join in analysis
+
+## Extension Plan for Other Data Centers
+
+When porting to a new site:
+1. Keep benchmark definitions and experiment matrix unchanged
+2. Add a new profile under `sites/` (scheduler + software resolution + launcher conventions)
+3. Adjust benchmark `prepare()` only where site software layout differs
+4. Keep output schema unchanged
+
+This minimizes migration effort and preserves reproducibility.
+
+## External Power Integration
+
+This repo can be paired with external power data after runs complete.
+Suggested workflow:
+1. Run benchmark jobs from this repository
+2. Collect power/infrastructure data from `Repacss-power-profiling`
+3. Join by job id / node / timestamp window in post-processing
+
+## Practical Notes
+
+- `benchmarks/quantum-espresso/run_espresso_repacss.sh` is currently a placeholder.
+- The active taxonomy and design rules are documented in `docs/guides/benchmark_taxonomy.md`.
+- The experiment-subset pattern is documented in `experiments/README.md`.
+- Site profile conventions are documented in `sites/README.md`.
 
 ## License
 
-This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
-
-## Documentation
-
-For more detailed documentation, see:
-
-- [Quick Start Guide](docs/quickstart.md)
-- Benchmarks Documentation: `docs/benchmarks.md`
-- Analysis Guide for benchmark data: `docs/analysis.md`
-- [Troubleshooting](docs/troubleshooting.md)
-
-## Contact
-
-For questions and support, please open an issue on the GitHub repository.
-
-## Data Management
-
-### Data Storage
-
-The project uses a structured approach to store benchmark and power monitoring data:
-
-```
-results/
-├── raw/                      # Raw data from benchmarks and power monitoring
-│   ├── power/               # Power monitoring data
-│   │   ├── cpu/            # CPU power data
-│   │   ├── gpu/            # GPU power data
-│   │   └── system/         # System power data
-│   └── benchmarks/         # Benchmark results
-│       ├── osu/            # OSU benchmark results
-│       └── hpl/            # HPL benchmark results
-├── processed/               # Processed and analyzed data
-│   ├── power/              # Processed power data
-│   ├── benchmarks/         # Processed benchmark results
-│   └── reports/            # Generated analysis reports
-└── metadata/               # Metadata and configuration files
-    ├── system_info.json    # System configuration
-    └── benchmark_config.json # Benchmark configurations
-```
-
-### Data Formats
-
-1. **Power Monitoring Data (JSON)**
-```json
-{
-    "timestamp": "20240321_123456",
-    "benchmark": "osu_latency",
-    "parameters": {
-        "np": 2,
-        "duration": 60
-    },
-    "cpu_power": [
-        {"timestamp": "2024-03-21T12:34:56", "power": 45.2},
-        {"timestamp": "2024-03-21T12:34:57", "power": 46.1}
-    ]
-}
-```
-
-2. **Benchmark Results (Text)**
-```
-# OSU MPI Latency Test v5.6.2
-# Size          Latency (us)
-4               1.23
-8               1.24
-16              1.25
-```
-
-### Data Analysis
-
-The project includes tools for analyzing power-performance data:
-
-```python
-from power_profiling.analysis import PowerAnalyzer
-
-# Load and analyze data
-analyzer = PowerAnalyzer()
-results = analyzer.analyze_benchmark(
-    benchmark_data="results/raw/benchmarks/osu/latency.txt",
-    power_data="results/raw/power/cpu/power_data.json"
-)
-
-# Generate report
-analyzer.generate_report(results, "results/processed/reports/analysis.html")
-```
-
-## Logging and Debugging
-
-### Logging Configuration
-
-The project uses Python's logging module with the following configuration:
-
-```python
-import logging
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('power_benchmark.log'),
-        logging.StreamHandler()
-    ]
-)
-
-# Usage in code
-logger = logging.getLogger(__name__)
-logger.info("Starting benchmark")
-logger.debug("Detailed debug information")
-logger.error("Error occurred", exc_info=True)
-```
-
-### Debugging Tools
-
-1. **Power Monitor Debug Mode**
-```python
-from power_profiling.monitors import CPUMonitor
-
-# Enable debug mode
-monitor = CPUMonitor(debug=True)
-monitor.start()
-```
-
-2. **Benchmark Debug Mode**
-```bash
-# Run benchmark with debug output
-python scripts/run_benchmark.py --benchmark osu --test latency --debug
-```
-
-3. **System Information**
-```bash
-# Collect system information
-python scripts/collect_system_info.py
-
-# View collected information
-cat results/metadata/system_info.json
-```
-
-### Common Debugging Steps
-
-1. **Power Monitoring Issues**
-   - Check hardware access permissions
-   - Verify sensor availability
-   - Monitor system logs for errors
-
-2. **Benchmark Issues**
-   - Check MPI configuration
-   - Verify resource availability
-   - Review benchmark logs
-
-3. **Performance Issues**
-   - Check system load
-   - Monitor thermal throttling
-   - Verify network connectivity
-
-### Out-of-band iDRAC (REPACSS) Integration
-
-Out-of-band iDRAC access, TimescaleDB queries, and rack-level power validation are now maintained
-exclusively in [`Repacss-power-profiling`](https://github.com/billzyj/Repacss-power-profiling). Use
-that project’s CLI or Python API to query and analyze power data alongside the benchmark results
-generated here.
+BSD 3-Clause. See `LICENSE`.

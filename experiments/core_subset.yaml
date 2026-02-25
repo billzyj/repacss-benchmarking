@@ -1,0 +1,17 @@
+name: core_io_network
+site_profile: repacss_zen4
+
+description: >-
+  Minimal REPACSS subset for storage/network/system sanity checks.
+
+benchmark_selection:
+  include_ids: [ior, osu, hpl, lammps]
+  filters:
+    benchmark_scale_any: [both, multi_node]
+    target_subsystems_any: [storage, network, cpu]
+  exclude_ids: [quantum_espresso]
+
+run_matrix:
+  repeats: 3
+  warmup: 1
+  policies: [max_freq]

@@ -1,0 +1,126 @@
+version: 1
+updated_by: repacss-benchmarking
+
+benchmarks:
+  - id: hpl
+    name: High Performance Linpack
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: system
+      target_subsystems: [cpu, memory, network]
+      workload_nature: synthetic
+      application_domain: linear_algebra
+      method_type: dense_la
+      characteristics: [compute, communication, memory_access]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c, fortran]
+      metrics_primary: [flops, time_to_solution]
+      portability: cpu_only
+    repacss:
+      status: ready
+      install_helper: benchmarks/hpl/install_hpl.sh
+      run_script: benchmarks/hpl/run_hpl_repacss.sh
+      software_resolution_priority: [module, spack, source]
+
+  - id: osu
+    name: OSU Micro-Benchmarks
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: component
+      target_subsystems: [network]
+      workload_nature: synthetic
+      application_domain: communication
+      method_type: mpi_microbench
+      characteristics: [communication]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c]
+      metrics_primary: [latency, bandwidth]
+      portability: cross_vendor
+    repacss:
+      status: ready
+      install_helper: benchmarks/osu/install_osu.sh
+      run_script: benchmarks/osu/run_osu_repacss.sh
+      software_resolution_priority: [module, spack, source]
+
+  - id: ior
+    name: IOR
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: component
+      target_subsystems: [storage]
+      workload_nature: synthetic
+      application_domain: io
+      method_type: parallel_io
+      characteristics: [io, communication]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c]
+      metrics_primary: [bandwidth, throughput]
+      portability: cross_vendor
+    repacss:
+      status: ready
+      run_script: benchmarks/ior/run_ior_repacss.sh
+      software_resolution_priority: [module, spack, source]
+
+  - id: lammps
+    name: LAMMPS
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: system
+      target_subsystems: [mixed]
+      workload_nature: real_app
+      application_domain: md
+      method_type: particle_simulation
+      characteristics: [compute, communication, memory_access]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c++]
+      metrics_primary: [time_to_solution, throughput]
+      portability: cross_vendor
+    repacss:
+      status: ready
+      run_script: benchmarks/lammps/run_lammps_repacss.sh
+      software_resolution_priority: [spack, module, source]
+
+  - id: quantum_espresso
+    name: Quantum Espresso
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: system
+      target_subsystems: [mixed]
+      workload_nature: real_app
+      application_domain: chemistry
+      method_type: electronic_structure
+      characteristics: [compute, communication, memory_access]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [fortran, c]
+      metrics_primary: [time_to_solution]
+      portability: cross_vendor
+    repacss:
+      status: wip
+      run_script: benchmarks/quantum-espresso/run_espresso_repacss.sh
+      software_resolution_priority: [module, spack, source]
+
+artifacts_not_benchmarks_examples:
+  - id: green500
+    object:
+      artifact_type: ranking
+    note: Ranking methodology, not a runnable benchmark workload.
+
+  - id: darshan
+    object:
+      artifact_type: tool
+    note: Instrumentation/profiling tool, not a workload benchmark.
