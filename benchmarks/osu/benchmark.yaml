@@ -1,0 +1,16 @@
+id: osu
+name: OSU Micro-Benchmarks
+artifact_type: benchmark
+adapter_default: repacss
+datasets:
+  id_env: DATASET_ID
+  root_env: DATASET_ROOT
+  profiles: [small, production]
+adapters:
+  repacss:
+    prepare: adapters/repacss/prepare.sh
+    run: adapters/repacss/run.sh
+    parse: adapters/repacss/parse.sh
+    run_mode: launcher
+notes:
+  - Legacy wrappers are retained at benchmark root for compatibility.

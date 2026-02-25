@@ -4,6 +4,7 @@ updated_by: repacss-benchmarking
 benchmarks:
   - id: hpl
     name: High Performance Linpack
+    benchmark_file: benchmarks/hpl/benchmark.yaml
     object:
       artifact_type: benchmark
     semantics:
@@ -21,12 +22,14 @@ benchmarks:
       portability: cpu_only
     repacss:
       status: ready
-      install_helper: benchmarks/hpl/install_hpl.sh
-      run_script: benchmarks/hpl/run_hpl_repacss.sh
+      prepare_script: benchmarks/hpl/adapters/repacss/prepare.sh
+      run_script: benchmarks/hpl/adapters/repacss/run.sh
+      parse_script: benchmarks/hpl/adapters/repacss/parse.sh
       software_resolution_priority: [module, spack, source]
 
   - id: osu
     name: OSU Micro-Benchmarks
+    benchmark_file: benchmarks/osu/benchmark.yaml
     object:
       artifact_type: benchmark
     semantics:
@@ -44,12 +47,14 @@ benchmarks:
       portability: cross_vendor
     repacss:
       status: ready
-      install_helper: benchmarks/osu/install_osu.sh
-      run_script: benchmarks/osu/run_osu_repacss.sh
+      prepare_script: benchmarks/osu/adapters/repacss/prepare.sh
+      run_script: benchmarks/osu/adapters/repacss/run.sh
+      parse_script: benchmarks/osu/adapters/repacss/parse.sh
       software_resolution_priority: [module, spack, source]
 
   - id: ior
     name: IOR
+    benchmark_file: benchmarks/ior/benchmark.yaml
     object:
       artifact_type: benchmark
     semantics:
@@ -67,11 +72,14 @@ benchmarks:
       portability: cross_vendor
     repacss:
       status: ready
-      run_script: benchmarks/ior/run_ior_repacss.sh
+      prepare_script: benchmarks/ior/adapters/repacss/prepare.sh
+      run_script: benchmarks/ior/adapters/repacss/run.sh
+      parse_script: benchmarks/ior/adapters/repacss/parse.sh
       software_resolution_priority: [module, spack, source]
 
   - id: lammps
     name: LAMMPS
+    benchmark_file: benchmarks/lammps/benchmark.yaml
     object:
       artifact_type: benchmark
     semantics:
@@ -89,11 +97,14 @@ benchmarks:
       portability: cross_vendor
     repacss:
       status: ready
-      run_script: benchmarks/lammps/run_lammps_repacss.sh
+      prepare_script: benchmarks/lammps/adapters/repacss/prepare.sh
+      run_script: benchmarks/lammps/adapters/repacss/run.sh
+      parse_script: benchmarks/lammps/adapters/repacss/parse.sh
       software_resolution_priority: [spack, module, source]
 
   - id: quantum_espresso
     name: Quantum Espresso
+    benchmark_file: benchmarks/quantum-espresso/benchmark.yaml
     object:
       artifact_type: benchmark
     semantics:
@@ -111,7 +122,9 @@ benchmarks:
       portability: cross_vendor
     repacss:
       status: wip
-      run_script: benchmarks/quantum-espresso/run_espresso_repacss.sh
+      prepare_script: benchmarks/quantum-espresso/adapters/repacss/prepare.sh
+      run_script: benchmarks/quantum-espresso/adapters/repacss/run.sh
+      parse_script: benchmarks/quantum-espresso/adapters/repacss/parse.sh
       software_resolution_priority: [module, spack, source]
 
 artifacts_not_benchmarks_examples:

@@ -59,6 +59,11 @@ This lets you add benchmarks without coupling them to every site implementation.
 ### 4. External Integrations (optional)
 Power is integrated as an external dependency, not embedded into benchmark runners.
 
+### Configuration Boundary (important)
+- Site-dependent: scheduler resources, modules/spack resolution, launcher, filesystem paths.
+- Site-independent: benchmark identity, experiment matrix, benchmark arguments, dataset profile id.
+- Mixed: dataset id/profile is portable, but dataset path is site-specific.
+
 ## Benchmark Taxonomy (Three-layer)
 
 Benchmark classification now follows three independent layers:
@@ -122,30 +127,41 @@ Current structure is now aligned to the separation-of-concerns goal:
 - `catalog/` = machine-readable benchmark registry and taxonomy vocabulary
 - `experiments/` = run subset and matrix definitions
 - `sites/` = site-specific scheduler/environment/runtime defaults
-- `benchmarks/` = executable benchmark wrappers and install/run helpers
+- `benchmarks/` = per-benchmark adapter contract (`benchmark.yaml`) + executable site adapters
+- `scripts/` = repository guardrails and structural checks
 - `docs/guides/` = human-readable design rules
 
 Remaining optimization target:
 - move per-site execution details out of benchmark entries (`catalog/benchmarks.yaml`) into adapters plus `sites/` resolution rules over time.
 
+Quick check command:
+```bash
+bash scripts/check_repo_layout.sh
+```
+
+CI guardrail:
+- `.github/workflows/repo-layout-check.yml` runs layout and script checks on push and pull requests.
+
 ## Repository Layout (Current)
 
-| Path | Purpose | Design Mapping |
-|---|---|---|
-| `catalog/` | Machine-readable benchmark registry and taxonomy vocabulary. | Experiment Contract + Taxonomy |
-| `catalog/benchmarks.yaml` | Full list of supported benchmarks and their normalized metadata. | Experiment Contract |
-| `catalog/taxonomy.schema.yaml` | Controlled vocabulary for fields/enums used by benchmark entries. | Taxonomy Governance |
-| `experiments/` | Run-specific subset definitions and parameter matrices. | Experiment Contract (run instance) |
-| `experiments/core_subset.yaml` | Example subset selecting benchmarks and run matrix values. | Experiment Selection |
-| `sites/` | Site-specific execution profiles with scheduler/runtime defaults. | Site Profile |
-| `sites/repacss_h100.yaml` | REPACSS GPU-node defaults (partition/resources/runtime backend). | Site Profile |
-| `sites/repacss_zen4.yaml` | REPACSS CPU-node defaults (partition/resources/runtime backend). | Site Profile |
-| `benchmarks/` | Benchmark adapters and helper scripts for prepare/run behavior. | Workload Adapter |
-| `benchmarks/hpl/`, `benchmarks/osu/`, `benchmarks/ior/`, `benchmarks/lammps/` | Per-benchmark scripts for installation/run entry points. | Workload Adapter |
-| `benchmarks/templates/` | Reusable Slurm template scripts for REPACSS partitions. | Site Profile Integration |
-| `docs/guides/benchmark_taxonomy.md` | Human-readable design rules and classification principles. | Design Documentation |
-| `external/Repacss-power-profiling/` | External submodule for power/infrastructure telemetry workflows. | External Integration |
-| `README.md` | Repository-wide architecture, scope, and usage entry point. | Governance + Onboarding |
+| Path | Question It Answers | Purpose | Design Mapping |
+|---|---|---|---|
+| `catalog/` | `What is it` | Machine-readable benchmark registry and taxonomy vocabulary. | Experiment Contract + Taxonomy |
+| `catalog/benchmarks.yaml` | `What is it` | Full list of supported benchmarks and normalized metadata entries, including `benchmark_file` pointers to local adapter contracts. | Experiment Contract |
+| `catalog/taxonomy.schema.yaml` | `What is it (classification rules)` | Controlled vocabulary for fields/enums used by benchmark entries. | Taxonomy Governance |
+| `experiments/` | `What to run` | Run-specific subset definitions and parameter matrices. | Experiment Contract (run instance) |
+| `experiments/core_subset.yaml` | `What to run in this study` | Example subset selecting benchmarks and run matrix values. | Experiment Selection |
+| `sites/` | `Where and how to run` | Site-specific execution profiles with scheduler/runtime defaults. | Site Profile |
+| `sites/repacss_h100.yaml` | `How to run on REPACSS H100` | REPACSS GPU-node defaults (partition/resources/runtime backend). | Site Profile |
+| `sites/repacss_zen4.yaml` | `How to run on REPACSS Zen4` | REPACSS CPU-node defaults (partition/resources/runtime backend). | Site Profile |
+| `benchmarks/` | `How execution and parsing work` | Benchmark adapters and helper scripts for prepare/run/parse behavior. | Workload Adapter |
+| `benchmarks/<id>/benchmark.yaml` | `How benchmark-local adapter entry points are declared` | Site-agnostic benchmark-local metadata with adapter mapping. | Workload Adapter Contract |
+| `benchmarks/<id>/adapters/repacss/{prepare,run,parse}.sh` | `How a specific benchmark runs on REPACSS` | REPACSS-specific prepare/run/parse adapter implementation. | Workload Adapter |
+| `benchmarks/templates/` | `How shared job templates are defined` | Adapter-first Slurm template examples that separate site-dependent and site-independent settings. | Site Profile Integration |
+| `scripts/check_repo_layout.sh` | `Is the repository structure still valid` | Validates adapter contract, catalog script paths, and benchmark id registration. | Repository Guardrail |
+| `docs/guides/benchmark_taxonomy.md` | `Why this design` | Human-readable design rules and classification principles. | Design Documentation |
+| `external/Repacss-power-profiling/` | `What to integrate for power` | External submodule for power/infrastructure telemetry workflows. | External Integration |
+| `README.md` | `Entry point` | Repository-wide architecture, scope, and usage entry point. | Governance + Onboarding |
 
 ## REPACSS Quick Start (Run Now)
 
@@ -161,25 +177,25 @@ Remaining optimization target:
 
 OSU:
 ```bash
-bash benchmarks/osu/install_osu.sh module
+bash benchmarks/osu/adapters/repacss/prepare.sh module
 # or
-bash benchmarks/osu/install_osu.sh spack
+bash benchmarks/osu/adapters/repacss/prepare.sh spack
 # or
-bash benchmarks/osu/install_osu.sh source
+bash benchmarks/osu/adapters/repacss/prepare.sh source
 ```
 
 HPL:
 ```bash
-bash benchmarks/hpl/install_hpl.sh module
+bash benchmarks/hpl/adapters/repacss/prepare.sh module
 # or
-bash benchmarks/hpl/install_hpl.sh spack
+bash benchmarks/hpl/adapters/repacss/prepare.sh spack
 # or
-bash benchmarks/hpl/install_hpl.sh source
+bash benchmarks/hpl/adapters/repacss/prepare.sh source
 ```
 
 ### Run IOR on Zen4
 
-`benchmarks/ior/run_ior_repacss.sh` is a complete Slurm batch job.
+`benchmarks/ior/adapters/repacss/run.sh` is a complete Slurm batch job.
 Before submission, ensure these directories are set in your shell or directly in the script:
 - `MEM_IO`
 - `LOCAL_IO`
@@ -187,14 +203,14 @@ Before submission, ensure these directories are set in your shell or directly in
 
 Submit:
 ```bash
-sbatch benchmarks/ior/run_ior_repacss.sh
+sbatch benchmarks/ior/adapters/repacss/run.sh
 ```
 
 ### Run LAMMPS on Zen4
 
 Submit:
 ```bash
-sbatch benchmarks/lammps/run_lammps_repacss.sh
+sbatch benchmarks/lammps/adapters/repacss/run.sh
 ```
 
 Notes:
@@ -203,25 +219,25 @@ Notes:
 
 ### Run HPL
 
-`benchmarks/hpl/run_hpl_repacss.sh` is a launcher wrapper (not a full Slurm script).
+`benchmarks/hpl/adapters/repacss/run.sh` is a launcher wrapper (not a full Slurm script).
 Use it inside an allocation or from your own batch script.
 
 Example:
 ```bash
 # inside an allocated job shell
 module load hpl
-bash benchmarks/hpl/run_hpl_repacss.sh 4 /path/to/HPL.dat
+bash benchmarks/hpl/adapters/repacss/run.sh 4 /path/to/HPL.dat
 ```
 
 ### Run OSU
 
-`benchmarks/osu/run_osu_repacss.sh` is a launcher wrapper.
+`benchmarks/osu/adapters/repacss/run.sh` is a launcher wrapper.
 
 Example:
 ```bash
 # inside an allocated job shell
 module load osu-micro-benchmarks
-bash benchmarks/osu/run_osu_repacss.sh osu_latency 2
+bash benchmarks/osu/adapters/repacss/run.sh osu_latency 2
 ```
 
 ## Current vs Target Output Contract
@@ -278,7 +294,8 @@ Suggested workflow:
 
 ## Practical Notes
 
-- `benchmarks/quantum-espresso/run_espresso_repacss.sh` is currently a placeholder.
+- `benchmarks/quantum-espresso/adapters/repacss/run.sh` is currently a placeholder.
+- Legacy wrapper paths (`run_*_repacss.sh`, `install_*`) are kept for compatibility and forward to `adapters/repacss/`.
 - The active taxonomy and design rules are documented in `docs/guides/benchmark_taxonomy.md`.
 - The experiment-subset pattern is documented in `experiments/README.md`.
 - Site profile conventions are documented in `sites/README.md`.

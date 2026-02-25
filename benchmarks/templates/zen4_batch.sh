@@ -1,75 +1,56 @@
 #!/bin/bash
-#
-# ===== Slurm Job Info =====
-#SBATCH --job-name=CPU_IO_bench
+# Example Slurm template for CPU partitions (Zen4) using adapter-first execution.
+# Copy and adjust values for your benchmark.
+
+#SBATCH --job-name=adapter_zen4
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
-
-# ===== Slurm Resource Requests =====
-#SBATCH --partition=zen4              # CPU partition (AMD EPYC 9754) 256 cores/node
+#SBATCH --partition=zen4
 #SBATCH --nodes=1
 #SBATCH --ntasks=256
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=0                       # Full node memory (1.5 TB)
+#SBATCH --mem=0
 #SBATCH --time=24:00:00
 
-# ===== Optional =====
-## #SBATCH --nodelist=rpc-91-9        # Pin to a specific Zen4 node
+set -euo pipefail
 
-echo "===== Job $SLURM_JOB_ID on $SLURM_NODELIST ====="
-echo "CPUs/task: $SLURM_CPUS_PER_TASK | Tasks: $SLURM_NTASKS"
-echo "Working directory: $(pwd)"
-echo
+# -------- Site-dependent defaults --------
+ADAPTER_SITE="${ADAPTER_SITE:-repacss}"
+PREPARE_METHOD="${PREPARE_METHOD:-module}"
+DATASET_ROOT="${DATASET_ROOT:-$HOME/data}"
 
-# ===== Environment =====
+# -------- Site-independent benchmark intent --------
+BENCH_ID="${BENCH_ID:-osu}"
+DATASET_ID="${DATASET_ID:-small}"
+RUN_ARGS="${RUN_ARGS:-osu_latency 2}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BENCH_DIR="$REPO_ROOT/benchmarks/$BENCH_ID"
+PREPARE_SCRIPT="$BENCH_DIR/adapters/$ADAPTER_SITE/prepare.sh"
+RUN_SCRIPT="$BENCH_DIR/adapters/$ADAPTER_SITE/run.sh"
+PARSE_SCRIPT="$BENCH_DIR/adapters/$ADAPTER_SITE/parse.sh"
+
+if [[ ! -x "$PREPARE_SCRIPT" || ! -x "$RUN_SCRIPT" ]]; then
+  echo "Missing adapter scripts for benchmark=$BENCH_ID site=$ADAPTER_SITE"
+  echo "Expected: $PREPARE_SCRIPT and $RUN_SCRIPT"
+  exit 1
+fi
+
+echo "[template] BENCH_ID=$BENCH_ID ADAPTER_SITE=$ADAPTER_SITE DATASET_ID=$DATASET_ID"
+echo "[template] DATASET_ROOT=$DATASET_ROOT"
+
+# Optional site environment setup (mirror sites/repacss_zen4.yaml)
 source ~/.bashrc
-ml load mpich/4.1.2 pmix/5.0.3
-export PMIX_MCA_psec=none    # preferred over PMIX_SECURITY_MODE=none
-spack load ior /cc || true
-LOGDIR="ior_logs_${SLURM_JOB_ID}"
-mkdir -p "$LOGDIR"
+ml load mpich/4.1.2 pmix/5.0.3 || true
 
-# ===== Benchmark Parameters =====
-IOR_BIN=$(which ior)
-TARGETS=("MEM_IO" "LOCAL_IO" "NFS_IO")
-XFERSIZES=("16k" "1m" "16m")       # transfer size per I/O call
-NUM_PROCS=("1" "64" "256")         # number of MPI ranks
-BLOCKSIZES=("64g" "1g" "256m")     # per-rank size so total=64G
-SEGMENTS=16                         # number of segments per file
-NUM_RUNS=3                         # repetitions per configuration
+# Prepare runtime (module/spack/source)
+"$PREPARE_SCRIPT" "$PREPARE_METHOD"
 
-for target_var in "${TARGETS[@]}"; do
-  TARGET_DIR=${!target_var}
-  mkdir -p "$TARGET_DIR"
+# Execute benchmark adapter
+# shellcheck disable=SC2086
+"$RUN_SCRIPT" $RUN_ARGS
 
-  for XFERSIZE in "${XFERSIZES[@]}"; do
-    for idx in "${!NUM_PROCS[@]}"; do
-      NP=${NUM_PROCS[$idx]}
-      BLOCKSIZE=${BLOCKSIZES[$idx]}
-
-      FILE_WARM="$TARGET_DIR/iorfile_${SLURM_JOB_ID}_warm_${BLOCKSIZE}_${XFERSIZE}_${NP}p"
-      FILE_COLD="$TARGET_DIR/iorfile_${SLURM_JOB_ID}_cold_${BLOCKSIZE}_${XFERSIZE}_${NP}p"
-
-      echo "[$(date)] Warm run: $target_var | XS=$XFERSIZE | NP=$NP | BS=$BLOCKSIZE | Iter=$NUM_RUNS"
-      mpirun -np $NP $IOR_BIN -a POSIX -C -w -r -e\
-             -t $XFERSIZE -b $BLOCKSIZE -i $NUM_RUNS \
-             -o "$FILE_WARM" \
-             > "$LOGDIR/warm_${target_var,,}_${BLOCKSIZE}_${XFERSIZE}_${NP}p.log" 2>&1
-
-      # Skip O_DIRECT for tmpfs
-      if [[ "$target_var" != "MEM_IO" ]]; then
-        echo "[$(date)] Cold run: $target_var | XS=$XFERSIZE | NP=$NP | BS=$BLOCKSIZE | Iter=$NUM_RUNS"
-        mpirun -np $NP $IOR_BIN -a POSIX -C -w -r -e\
-               -t $XFERSIZE -b $BLOCKSIZE -i $NUM_RUNS -O useO_DIRECT=1 \
-               -o "$FILE_COLD" \
-               > "$LOGDIR/cold_${target_var,,}_${BLOCKSIZE}_${XFERSIZE}_${NP}p.log" 2>&1
-      else
-        echo "[$(date)] Skipped cold run for $target_var (O_DIRECT not supported)"
-      fi
-
-      rm -f "$FILE_WARM" "$FILE_COLD"
-    done
-  done
-done
-
-echo "===== Job $SLURM_JOB_ID completed at $(date) ====="
+# Optional parse placeholder
+if [[ -x "$PARSE_SCRIPT" ]]; then
+  "$PARSE_SCRIPT" "${SLURM_JOB_ID:-job}.log" "summary.${SLURM_JOB_ID:-local}.json" || true
+fi

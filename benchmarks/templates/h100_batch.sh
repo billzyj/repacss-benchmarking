@@ -1,58 +1,57 @@
 #!/bin/bash
-#
-# ===== Slurm Job Info =====
-#SBATCH --job-name=gpu_bench
+# Example Slurm template for GPU partitions (H100) using adapter-first execution.
+# Copy and adjust values for your benchmark.
+
+#SBATCH --job-name=adapter_h100
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
-
-# ===== Slurm Resource Requests =====
-#SBATCH --partition=h100              # GPU partition (NVIDIA H100 NVL)
+#SBATCH --partition=h100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:4                  # Request all 4 GPUs
-#SBATCH --mem=0                       # Full node memory (512 GB)
+#SBATCH --gres=gpu:4
+#SBATCH --mem=0
 #SBATCH --time=01:00:00
 
-# ===== Optional =====
-## #SBATCH --partition=h100-build     # Use build node (rpg-93-9)
-## #SBATCH --nodelist=rpg-93-5        # Pin to a specific GPU node
+set -euo pipefail
 
-# ===== Job Body =====
-echo "Job $SLURM_JOB_ID running on: $SLURM_NODELIST"
-echo "Allocated CPUs: $SLURM_CPUS_PER_TASK"
-echo "GPUs allocated: $CUDA_VISIBLE_DEVICES"
+# -------- Site-dependent defaults --------
+ADAPTER_SITE="${ADAPTER_SITE:-repacss}"
+PREPARE_METHOD="${PREPARE_METHOD:-module}"
+DATASET_ROOT="${DATASET_ROOT:-$HOME/data}"
 
-# ---- Checkpoint 1: Job start (allocation granted) ----
-T0=$(date +%s)
-echo "T0 Job start: $(date)"
+# -------- Site-independent benchmark intent --------
+BENCH_ID="${BENCH_ID:-osu}"
+DATASET_ID="${DATASET_ID:-small}"
+RUN_ARGS="${RUN_ARGS:-osu_latency 2}"
 
-# Environment setup
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BENCH_DIR="$REPO_ROOT/benchmarks/$BENCH_ID"
+PREPARE_SCRIPT="$BENCH_DIR/adapters/$ADAPTER_SITE/prepare.sh"
+RUN_SCRIPT="$BENCH_DIR/adapters/$ADAPTER_SITE/run.sh"
+PARSE_SCRIPT="$BENCH_DIR/adapters/$ADAPTER_SITE/parse.sh"
+
+if [[ ! -x "$PREPARE_SCRIPT" || ! -x "$RUN_SCRIPT" ]]; then
+  echo "Missing adapter scripts for benchmark=$BENCH_ID site=$ADAPTER_SITE"
+  echo "Expected: $PREPARE_SCRIPT and $RUN_SCRIPT"
+  exit 1
+fi
+
+echo "[template] BENCH_ID=$BENCH_ID ADAPTER_SITE=$ADAPTER_SITE DATASET_ID=$DATASET_ID"
+echo "[template] DATASET_ROOT=$DATASET_ROOT"
+
+# Optional site environment setup (mirror sites/repacss_h100.yaml)
 source ~/.bashrc
 module load cuda/12.9.0 || true
 
-# ---- Checkpoint 2: After environment setup ----
-T1=$(date +%s)
-echo "T1 Env ready: $(date)"
+# Prepare runtime (module/spack/source)
+"$PREPARE_SCRIPT" "$PREPARE_METHOD"
 
-# Benchmark workload
-echo "Running GPU workload..."
-srun nvidia-smi
+# Execute benchmark adapter
+# shellcheck disable=SC2086
+"$RUN_SCRIPT" $RUN_ARGS
 
-# ---- Checkpoint 3: Benchmark end ----
-T2=$(date +%s)
-echo "T2 Benchmark end: $(date)"
-
-# (Optional post-processing)
-sleep 2
-
-# ---- Checkpoint 4: Job end ----
-T3=$(date +%s)
-echo "T3 Job end: $(date)"
-
-# Print durations
-echo "Durations (seconds):"
-echo "  Env setup time   = $((T1 - T0))"
-echo "  Benchmark time   = $((T2 - T1))"
-echo "  Post-bench slack = $((T3 - T2))"
-echo "  Total job time   = $((T3 - T0))"
+# Optional parse placeholder
+if [[ -x "$PARSE_SCRIPT" ]]; then
+  "$PARSE_SCRIPT" "${SLURM_JOB_ID:-job}.log" "summary.${SLURM_JOB_ID:-local}.json" || true
+fi
