@@ -58,3 +58,10 @@ logs/
 
 # Build directories
 **/build/
+
+# Benchmark experiment artifacts (do not version control)
+benchmarks/lammps/*.lammps
+benchmarks/lammps/sim.chk.*
+benchmarks/lammps/in.lj
+benchmarks/lammps/restart.lj
+benchmarks/quantum-espresso/data/
