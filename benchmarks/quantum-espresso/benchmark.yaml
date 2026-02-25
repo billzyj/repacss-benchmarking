@@ -6,6 +6,22 @@ datasets:
   id_env: DATASET_ID
   root_env: DATASET_ROOT
   profiles: [small, production]
+inputs:
+  mode: file_bundle
+  supported_modes: [file_bundle]
+  profile_env: DATASET_ID
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      mode: file_bundle
+      required_files:
+        - "inputs/si/si_sssp.scf.in"
+      run_args: "QE_INPUT_FILE=inputs/si/si_sssp.scf.in"
+    production:
+      mode: file_bundle
+      required_files:
+        - "${DATASET_ROOT}/quantum-espresso/si_long_md.in"
+      run_args: "QE_INPUT_FILE=${DATASET_ROOT}/quantum-espresso/si_long_md.in"
 adapters:
   repacss:
     prepare: adapters/repacss/prepare.sh

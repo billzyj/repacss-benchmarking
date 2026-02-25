@@ -240,20 +240,20 @@ module load osu-micro-benchmarks
 bash benchmarks/osu/adapters/repacss/run.sh osu_latency 2
 ```
 
-## Current vs Target Output Contract
+## Output Contract
 
-Current state:
-- Slurm stdout/stderr (`slurm-*.out`, `slurm-*.err`)
-- Benchmark native logs (for example IOR warm/cold logs)
-
-Target state (recommended contract for future orchestration):
+Per-run normalized artifacts:
 - `meta.json`
 - `telemetry.csv`
 - `decisions.csv`
 - `summary.json`
-- aggregated `results.csv`
 
-This contract is recommended so new policies/methods can be added without changing analysis code.
+Raw artifacts remain benchmark-native (for example Slurm logs and benchmark logs) and are stored under each run's `raw/` directory.
+
+Recommended aggregate output:
+- `results.csv`
+
+This contract allows new policies/methods to be added without changing downstream analysis code.
 
 ## REPACSS-First, Then Portable
 

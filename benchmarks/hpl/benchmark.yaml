@@ -6,6 +6,22 @@ datasets:
   id_env: DATASET_ID
   root_env: DATASET_ROOT
   profiles: [small, production]
+inputs:
+  mode: file_bundle
+  supported_modes: [file_bundle]
+  profile_env: DATASET_ID
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      mode: file_bundle
+      required_files:
+        - "inputs/hpl/HPL-small.dat"
+      run_args: "<np> inputs/hpl/HPL-small.dat"
+    production:
+      mode: file_bundle
+      required_files:
+        - "${DATASET_ROOT}/hpl/HPL.dat"
+      run_args: "<np> ${DATASET_ROOT}/hpl/HPL.dat"
 adapters:
   repacss:
     prepare: adapters/repacss/prepare.sh

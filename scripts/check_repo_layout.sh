@@ -162,7 +162,7 @@ for bench_dir in "$BENCH_ROOT"/*; do
   [[ -d "$bench_dir" ]] || continue
   bench_name="$(basename "$bench_dir")"
 
-  if [[ "$bench_name" == "templates" ]]; then
+  if [[ "$bench_name" == "templates" || "$bench_name" == "common" ]]; then
     continue
   fi
 

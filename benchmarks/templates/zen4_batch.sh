@@ -18,10 +18,13 @@ set -euo pipefail
 ADAPTER_SITE="${ADAPTER_SITE:-repacss}"
 PREPARE_METHOD="${PREPARE_METHOD:-module}"
 DATASET_ROOT="${DATASET_ROOT:-$HOME/data}"
+RUN_ROOT="${RUN_ROOT:-$DATASET_ROOT/runs}"
+SITE_PROFILE="${SITE_PROFILE:-repacss_zen4}"
 
 # -------- Site-independent benchmark intent --------
 BENCH_ID="${BENCH_ID:-osu}"
 DATASET_ID="${DATASET_ID:-small}"
+EXPERIMENT_ID="${EXPERIMENT_ID:-template_zen4}"
 RUN_ARGS="${RUN_ARGS:-osu_latency 2}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -38,6 +41,7 @@ fi
 
 echo "[template] BENCH_ID=$BENCH_ID ADAPTER_SITE=$ADAPTER_SITE DATASET_ID=$DATASET_ID"
 echo "[template] DATASET_ROOT=$DATASET_ROOT"
+echo "[template] RUN_ROOT=$RUN_ROOT EXPERIMENT_ID=$EXPERIMENT_ID SITE_PROFILE=$SITE_PROFILE"
 
 # Optional site environment setup (mirror sites/repacss_zen4.yaml)
 source ~/.bashrc
@@ -49,8 +53,3 @@ ml load mpich/4.1.2 pmix/5.0.3 || true
 # Execute benchmark adapter
 # shellcheck disable=SC2086
 "$RUN_SCRIPT" $RUN_ARGS
-
-# Optional parse placeholder
-if [[ -x "$PARSE_SCRIPT" ]]; then
-  "$PARSE_SCRIPT" "${SLURM_JOB_ID:-job}.log" "summary.${SLURM_JOB_ID:-local}.json" || true
-fi

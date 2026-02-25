@@ -1,12 +1,23 @@
 #!/bin/bash
-# Template run adapter for REPACSS.
+# Template run adapter for REPACSS with unified run artifact contract.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BENCH_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+COMMON_LIB="$BENCH_DIR/../common/repacss_contract.sh"
+if [[ ! -f "$COMMON_LIB" ]]; then
+  COMMON_LIB="$BENCH_DIR/../../common/repacss_contract.sh"
+fi
+source "$COMMON_LIB"
+
+BENCH_ID="dummy"
 DATASET_ID="${DATASET_ID:-param_small}"
 DATASET_ROOT="${DATASET_ROOT:-$HOME/data}"
+
+repacss_make_run_dirs "$BENCH_ID" "${SITE_PROFILE:-repacss_zen4}"
+repacss_write_context "$BENCH_ID" "launcher" "$DATASET_ID"
+repacss_init_normalized_artifacts "$BENCH_ID" "Dummy Benchmark (Template)" "$DATASET_ID"
 
 INPUT_MODE=""
 RUN_ARGS=""
@@ -43,14 +54,23 @@ for f in "${REQUIRED_FILES[@]}"; do
   fi
 done
 
-BIN="${DUMMY_BIN:-dummy-benchmark}"
+echo "timestamp_utc,component,decision,reason" > "${NORM_DIR}/decisions.csv"
+echo "$(repacss_iso8601_utc),run,input_mode=${INPUT_MODE},resolved from dataset profile ${DATASET_ID}" >> "${NORM_DIR}/decisions.csv"
 
+BIN="${DUMMY_BIN:-dummy-benchmark}"
+RUN_LOG="${RAW_DIR}/dummy.log"
+
+echo "[dummy] RUN_DIR=$RUN_DIR"
 echo "[dummy] DATASET_ID=$DATASET_ID INPUT_MODE=$INPUT_MODE"
 echo "[dummy] Command: $BIN $RUN_ARGS"
 
 if command -v "$BIN" >/dev/null 2>&1; then
   # shellcheck disable=SC2086
-  "$BIN" $RUN_ARGS
+  "$BIN" $RUN_ARGS 2>&1 | tee "$RUN_LOG"
 else
-  echo "[dummy] Binary '$BIN' not found. Dry-run only."
+  echo "[dummy] Binary '$BIN' not found. Dry-run only." | tee "$RUN_LOG"
 fi
+
+"$SCRIPT_DIR/parse.sh" "$RUN_DIR" "${NORM_DIR}/summary.json"
+
+echo "[dummy] Completed. Artifacts: $RUN_DIR"

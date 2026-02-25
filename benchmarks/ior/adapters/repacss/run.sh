@@ -1,74 +1,128 @@
 #!/bin/bash
 #
-# ===== Slurm Job Info =====
-#SBATCH --job-name=CPU_IO_bench
+# Slurm batch adapter for IOR on REPACSS Zen4 using unified run artifacts.
+#
+# Optional environment variables:
+# - DATASET_ID            (default: production)
+# - DATASET_ROOT          (default: $HOME/data)
+# - RUN_ROOT              (default: ${DATASET_ROOT}/runs)
+# - EXPERIMENT_ID         (default: manual)
+# - SITE_PROFILE          (default: repacss_zen4)
+# - MEM_IO                (default: /dev/shm/$USER/ior)
+# - LOCAL_IO              (default: <RUN_DIR>/local_io)
+# - NFS_IO                (default: ${DATASET_ROOT}/ior_nfs)
+# - IOR_NUM_RUNS          (default: 1)
+# - IOR_XFERSIZES         (comma-separated, default: 16k,1m,16m)
+# - IOR_NUM_PROCS         (comma-separated, default: 1,64,256)
+# - IOR_BLOCKSIZES        (comma-separated, default: 64g,1g,256m)
+# - IOR_TARGETS           (comma-separated var names, default: MEM_IO,LOCAL_IO,NFS_IO)
+
+#SBATCH --job-name=ior_zen4
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
-
-# ===== Slurm Resource Requests =====
-#SBATCH --partition=zen4              # CPU partition (AMD EPYC 9754) 256 cores/node
+#SBATCH --partition=zen4
 #SBATCH --nodes=1
 #SBATCH --ntasks=256
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=0                       # Full node memory (1.5 TB)
+#SBATCH --mem=0
 #SBATCH --time=24:00:00
 
-# ===== Optional =====
-## #SBATCH --nodelist=rpc-91-9        # Pin to a specific Zen4 node
+set -euo pipefail
 
-echo "===== Job $SLURM_JOB_ID on $SLURM_NODELIST ====="
-echo "CPUs/task: $SLURM_CPUS_PER_TASK | Tasks: $SLURM_NTASKS"
-echo "Working directory: $(pwd)"
-echo
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BENCH_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$BENCH_DIR/../common/repacss_contract.sh"
 
-# ===== Environment =====
+DATASET_ID="${DATASET_ID:-production}"
+DATASET_ROOT="${DATASET_ROOT:-$HOME/data}"
+repacss_make_run_dirs "ior" "${SITE_PROFILE:-repacss_zen4}"
+repacss_write_context "ior" "slurm_batch" "$DATASET_ID"
+repacss_init_normalized_artifacts "ior" "IOR" "$DATASET_ID"
+
+echo "===== IOR job ${SLURM_JOB_ID:-local} on ${SLURM_NODELIST:-local} ====="
+echo "[ior] RUN_DIR=$RUN_DIR"
+
 source ~/.bashrc
-ml load mpich/4.1.2 pmix/5.0.3
-export PMIX_MCA_psec=none    # preferred over PMIX_SECURITY_MODE=none
+ml load mpich/4.1.2 pmix/5.0.3 || true
+export PMIX_MCA_psec=none
 spack load ior /cc || true
-LOGDIR="ior_logs_${SLURM_JOB_ID}"
+
+if ! command -v ior >/dev/null 2>&1; then
+  echo "Error: ior binary not found on PATH."
+  exit 1
+fi
+
+IOR_BIN="$(command -v ior)"
+LOGDIR="${RAW_DIR}/ior_logs"
 mkdir -p "$LOGDIR"
 
-# ===== Benchmark Parameters =====
-IOR_BIN=$(which ior)
-TARGETS=("MEM_IO" "LOCAL_IO" "NFS_IO")
-XFERSIZES=("16k" "1m" "16m")       # transfer size per I/O call
-NUM_PROCS=("1" "64" "256")         # number of MPI ranks
-BLOCKSIZES=("64g" "1g" "256m")     # per-rank size so total=64G
-NUM_RUNS=1                         # repetitions per configuration
+MEM_IO="${MEM_IO:-/dev/shm/${USER}/ior}"
+LOCAL_IO="${LOCAL_IO:-${RUN_DIR}/local_io}"
+NFS_IO="${NFS_IO:-${DATASET_ROOT}/ior_nfs}"
+
+IFS=',' read -r -a TARGETS <<< "${IOR_TARGETS:-MEM_IO,LOCAL_IO,NFS_IO}"
+IFS=',' read -r -a XFERSIZES <<< "${IOR_XFERSIZES:-16k,1m,16m}"
+IFS=',' read -r -a NUM_PROCS <<< "${IOR_NUM_PROCS:-1,64,256}"
+IFS=',' read -r -a BLOCKSIZES <<< "${IOR_BLOCKSIZES:-64g,1g,256m}"
+IOR_NUM_RUNS="${IOR_NUM_RUNS:-1}"
+
+if [[ "${#NUM_PROCS[@]}" -ne "${#BLOCKSIZES[@]}" ]]; then
+  echo "Error: IOR_NUM_PROCS and IOR_BLOCKSIZES must have same length."
+  exit 1
+fi
+
+echo "$(repacss_iso8601_utc),run,targets=${IOR_TARGETS:-MEM_IO,LOCAL_IO,NFS_IO},from env" >> "${NORM_DIR}/decisions.csv"
+echo "$(repacss_iso8601_utc),run,xfersizes=${IOR_XFERSIZES:-16k,1m,16m},from env" >> "${NORM_DIR}/decisions.csv"
+echo "$(repacss_iso8601_utc),run,num_procs=${IOR_NUM_PROCS:-1,64,256},from env" >> "${NORM_DIR}/decisions.csv"
+echo "$(repacss_iso8601_utc),run,blocksizes=${IOR_BLOCKSIZES:-64g,1g,256m},from env" >> "${NORM_DIR}/decisions.csv"
+
+job_start_epoch="$(date +%s)"
 
 for target_var in "${TARGETS[@]}"; do
-  TARGET_DIR=${!target_var}
-  mkdir -p "$TARGET_DIR"
+  target_var="$(echo "$target_var" | xargs)"
+  target_dir="${!target_var:-}"
+  if [[ -z "$target_dir" ]]; then
+    echo "Error: unresolved target var '$target_var'."
+    exit 1
+  fi
+  mkdir -p "$target_dir"
 
-  for XFERSIZE in "${XFERSIZES[@]}"; do
+  for xfersize in "${XFERSIZES[@]}"; do
     for idx in "${!NUM_PROCS[@]}"; do
-      NP=${NUM_PROCS[$idx]}
-      BLOCKSIZE=${BLOCKSIZES[$idx]}
+      np="${NUM_PROCS[$idx]}"
+      blocksize="${BLOCKSIZES[$idx]}"
 
-      FILE_WARM="$TARGET_DIR/iorfile_${SLURM_JOB_ID}_warm_${BLOCKSIZE}_${XFERSIZE}_${NP}p"
-      FILE_COLD="$TARGET_DIR/iorfile_${SLURM_JOB_ID}_cold_${BLOCKSIZE}_${XFERSIZE}_${NP}p"
+      warm_file="${target_dir}/iorfile_${SLURM_JOB_ID:-local}_warm_${blocksize}_${xfersize}_${np}p"
+      cold_file="${target_dir}/iorfile_${SLURM_JOB_ID:-local}_cold_${blocksize}_${xfersize}_${np}p"
 
-      echo "[$(date)] Warm run: $target_var | XS=$XFERSIZE | NP=$NP | BS=$BLOCKSIZE | Iter=$NUM_RUNS"
-      mpirun -np $NP $IOR_BIN -a POSIX -C -w -r -e\
-             -t $XFERSIZE -b $BLOCKSIZE -i $NUM_RUNS \
-             -o "$FILE_WARM" \
-             > "$LOGDIR/warm_${target_var,,}_${BLOCKSIZE}_${XFERSIZE}_${NP}p.log" 2>&1
+      warm_log="${LOGDIR}/warm_${target_var,,}_${blocksize}_${xfersize}_${np}p.log"
+      cold_log="${LOGDIR}/cold_${target_var,,}_${blocksize}_${xfersize}_${np}p.log"
 
-      # Skip O_DIRECT for tmpfs
+      echo "[$(date)] Warm run: ${target_var} XS=${xfersize} NP=${np} BS=${blocksize}"
+      start_epoch="$(date +%s)"
+      mpirun -np "$np" "$IOR_BIN" -a POSIX -C -w -r -e \
+        -t "$xfersize" -b "$blocksize" -i "$IOR_NUM_RUNS" \
+        -o "$warm_file" > "$warm_log" 2>&1
+      end_epoch="$(date +%s)"
+      echo "$(repacss_iso8601_utc),run,warm_runtime_seconds,$((end_epoch - start_epoch)),s,target=${target_var};np=${np};bs=${blocksize};xs=${xfersize}" >> "${NORM_DIR}/telemetry.csv"
+
       if [[ "$target_var" != "MEM_IO" ]]; then
-        echo "[$(date)] Cold run: $target_var | XS=$XFERSIZE | NP=$NP | BS=$BLOCKSIZE | Iter=$NUM_RUNS"
-        mpirun -np $NP $IOR_BIN -a POSIX -C -w -r -e\
-               -t $XFERSIZE -b $BLOCKSIZE -i $NUM_RUNS -O useO_DIRECT=1 \
-               -o "$FILE_COLD" \
-               > "$LOGDIR/cold_${target_var,,}_${BLOCKSIZE}_${XFERSIZE}_${NP}p.log" 2>&1
-      else
-        echo "[$(date)] Skipped cold run for $target_var (O_DIRECT not supported)"
+        echo "[$(date)] Cold run: ${target_var} XS=${xfersize} NP=${np} BS=${blocksize}"
+        start_epoch="$(date +%s)"
+        mpirun -np "$np" "$IOR_BIN" -a POSIX -C -w -r -e \
+          -t "$xfersize" -b "$blocksize" -i "$IOR_NUM_RUNS" -O useO_DIRECT=1 \
+          -o "$cold_file" > "$cold_log" 2>&1
+        end_epoch="$(date +%s)"
+        echo "$(repacss_iso8601_utc),run,cold_runtime_seconds,$((end_epoch - start_epoch)),s,target=${target_var};np=${np};bs=${blocksize};xs=${xfersize}" >> "${NORM_DIR}/telemetry.csv"
       fi
 
-      rm -f "$FILE_WARM" "$FILE_COLD"
+      rm -f "$warm_file" "$cold_file"
     done
   done
 done
 
-echo "===== Job $SLURM_JOB_ID completed at $(date) ====="
+job_end_epoch="$(date +%s)"
+echo "$(repacss_iso8601_utc),run,total_runtime_seconds,$((job_end_epoch - job_start_epoch)),s,ior batch runtime" >> "${NORM_DIR}/telemetry.csv"
+
+"$SCRIPT_DIR/parse.sh" "$RUN_DIR" "${NORM_DIR}/summary.json"
+echo "[ior] Completed. Artifacts: $RUN_DIR"

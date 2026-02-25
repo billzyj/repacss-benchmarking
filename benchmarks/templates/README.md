@@ -51,9 +51,32 @@ cp -R benchmarks/templates/dummy-benchmark benchmarks/<new-id>
 Then update:
 1. `benchmark.yaml` (`id`, `name`, adapter scripts, dataset profiles)
 2. `prepare.sh` (module/spack/source resolution)
-3. `run.sh` (real launch command + input resolution logic)
-4. `parse.sh` (result normalization)
+3. `run.sh` (real launch command + input resolution logic + run artifact contract)
+4. `parse.sh` (result normalization into `meta.json/telemetry.csv/decisions.csv/summary.json`)
 5. `inputs/` files (if file-based inputs are required)
+
+## Output contract (required)
+
+Each run should write artifacts under a single run directory:
+
+```text
+<RUN_DIR>/
+  raw/
+  normalized/
+    meta.json
+    telemetry.csv
+    decisions.csv
+    summary.json
+```
+
+Recommended default:
+
+```text
+${RUN_ROOT:-${DATASET_ROOT:-$HOME/data}/runs}/${EXPERIMENT_ID}/${SITE_PROFILE}/${BENCH_ID}/${RUN_ID}
+```
+
+Use helper functions from:
+- `benchmarks/common/repacss_contract.sh`
 
 ## Input contract (`benchmark.yaml`)
 

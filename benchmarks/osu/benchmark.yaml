@@ -6,6 +6,20 @@ datasets:
   id_env: DATASET_ID
   root_env: DATASET_ROOT
   profiles: [small, production]
+inputs:
+  mode: parametric
+  supported_modes: [parametric]
+  profile_env: DATASET_ID
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      mode: parametric
+      required_files: []
+      run_args: "osu_latency 2"
+    production:
+      mode: parametric
+      required_files: []
+      run_args: "osu_bw 256"
 adapters:
   repacss:
     prepare: adapters/repacss/prepare.sh

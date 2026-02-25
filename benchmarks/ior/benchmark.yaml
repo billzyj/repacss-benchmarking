@@ -6,6 +6,20 @@ datasets:
   id_env: DATASET_ID
   root_env: DATASET_ROOT
   profiles: [small, production]
+inputs:
+  mode: hybrid
+  supported_modes: [hybrid]
+  profile_env: DATASET_ID
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      mode: hybrid
+      required_files: []
+      run_args: "IOR_TARGETS=MEM_IO,LOCAL_IO IOR_NUM_PROCS=1,16,64"
+    production:
+      mode: hybrid
+      required_files: []
+      run_args: "IOR_TARGETS=MEM_IO,LOCAL_IO,NFS_IO IOR_NUM_PROCS=1,64,256"
 adapters:
   repacss:
     prepare: adapters/repacss/prepare.sh

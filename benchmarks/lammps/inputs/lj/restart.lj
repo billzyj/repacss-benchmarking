@@ -1,0 +1,2 @@
+read_restart sim.chk.60000
+run 100000

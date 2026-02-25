@@ -36,3 +36,12 @@ If any generated file content is accidentally non-English:
 
 1. `README.md` is for project architecture and usage.
 2. `AGENTS.md` is for assistant interaction and generation rules.
+
+## REPACSS Debug Session Rules
+
+Use the following Slurm allocation rules for interactive debugging on REPACSS:
+
+1. CPU benchmark debugging: run `salloc -p zen4 --exclusive -t 04:00:00 --reservation=cxl`.
+2. GPU benchmark debugging: run `salloc -p h100 -t 04:00:00 --reservation=cxl`.
+3. If reservation `cxl` is full or unavailable, retry the same allocation command without `--reservation=cxl`; if both attempts fail, report the error.
+4. When the user instructs to stop debugging, run `exit` to release the allocated resources.
