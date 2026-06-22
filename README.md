@@ -1,305 +1,242 @@
 # REPACSS Benchmarking
 
-Benchmark orchestration repository for CPU/GPU/HPC workloads, with a REPACSS-first execution path and a clean extension path to other data centers.
+REPACSS-only benchmark recipes for installing, running, and parsing HPC benchmark workloads.
 
-This repository is intentionally **benchmarking-focused**.
-Power telemetry, infrastructure queries, and rack/system power analysis are handled externally.
+Current benchmark recipes default to the REPACSS Zen4 partition. Cluster reference files also record H100, H100-build, and MI210 facts so GPU recipes can be added without changing the repository shape.
 
-## Scope
+This repository is intentionally practical: each benchmark has a short path to install guidance, a run command, a parser, and benchmark-local inputs.
 
-What this repository owns:
-- Benchmark launch scripts and benchmark-specific wrappers
-- REPACSS-oriented run templates (Slurm + module/spack/source workflows)
-- Result organization for benchmark performance runs
-- A migration path to config-driven benchmark orchestration
-- A script-first layout (no Python package installation layer)
+## Start Here
 
-What this repository does not own:
-- In-band or out-of-band power profiling pipelines
-- TimescaleDB and infrastructure power query workflows
-- Data center specific power monitoring stacks
-- Python packaging metadata for editable installs (`setup.py`, `requirements/`)
+1. Pick a benchmark directory under `benchmark_recipes/`.
+2. Read its `recipe.yaml` to confirm the default partition and run mode.
+3. Choose an install method from the recipe's `installation` block.
+4. Check stable hardware facts in `repacss_cluster/hardware.yaml`.
+5. Check available system modules in `repacss_cluster/modules.yaml` and live module state with `module avail`.
+6. Check live scheduler state with `sinfo` before launching jobs.
+7. Run `install.sh`, then `run.sh`, then `parse.sh`.
+8. Use the normalized artifacts described in `operator_docs/artifact_contract.md`.
 
-For power workflows, use the external project:
-- `external/Repacss-power-profiling` (submodule)
-- Upstream: <https://github.com/billzyj/Repacss-power-profiling>
+## Root Layout
 
-## Design Strategy
-
-The key design decision is to separate stable experiment intent from data-center-specific execution details.
-
-### 1. Experiment Contract (portable)
-Define *what* to run:
-- benchmark id and input scale
-- policy id (`max_freq`, `everest`, `oracle_static`, etc.)
-- target constraints (`pd_target`, repetitions, warmup, window)
-- required output metrics (`runtime`, `perf_rel`, `power_rel`, `energy_rel`)
-
-This layer should stay stable across REPACSS, AMD test nodes, and future data centers.
-
-### 2. Site Profile (replaceable)
-Define *how this site runs jobs*:
-- scheduler templates and partition/account defaults
-- node shape (for example `4xH100`)
-- software resolution priority (`module -> spack -> source`)
-- site paths, module names, launcher conventions
-- vendor backend selection hooks (NVIDIA vs AMD)
-
-This layer is where REPACSS-specific details live.
-Site profiles are stored under `sites/*.yaml`.
-
-### 3. Workload Adapter (benchmark-specific)
-Each benchmark adapter should expose a minimal lifecycle:
-- `prepare()` resolve executable via module/spack/source
-- `run()` render and execute launch command
-- `parse()` normalize output into a common result schema
-
-This lets you add benchmarks without coupling them to every site implementation.
-
-### 4. External Integrations (optional)
-Power is integrated as an external dependency, not embedded into benchmark runners.
-
-### Configuration Boundary (important)
-- Site-dependent: scheduler resources, modules/spack resolution, launcher, filesystem paths.
-- Site-independent: benchmark identity, experiment matrix, benchmark arguments, dataset profile id.
-- Mixed: dataset id/profile is portable, but dataset path is site-specific.
-
-## Benchmark Taxonomy (Three-layer)
-
-Benchmark classification now follows three independent layers:
-- `object`: what the artifact is (`benchmark`, `suite`, `ranking`, `tool`)
-- `semantics`: what it measures (`scope`, `target_subsystems`, `workload_nature`, domain/method tags)
-- `execution`: how it runs (`benchmark_scale`, programming model, primary metrics, portability)
-
-Why this matters:
-- avoids mixing workload benchmarks with tools/rankings
-- supports both REPACSS-first execution and cross-site portability
-- keeps classification queryable for run-plan generation
-
-Detailed guide:
-- `docs/guides/benchmark_taxonomy.md`
-
-Catalog files:
-- `catalog/benchmarks.yaml`
-- `catalog/taxonomy.schema.yaml`
-
-## Catalog and Experiment Subsets
-
-Use a three-file pattern:
-- `catalog/benchmarks.yaml`: full benchmark registry (all supported benchmarks)
-- `experiments/*.yaml`: run-time subset and matrix for a specific study
-- `sites/*.yaml`: data-center-specific execution profiles
-
-This keeps benchmark metadata stable while allowing each experiment to select only a subset and bind one site profile.
-
-Recommended selection keys in an experiment file:
-- `include_ids`: explicit benchmark ids to include
-- `filters`: taxonomy-based filter conditions
-- `exclude_ids`: ids to remove after include/filter
-
-Conflict resolution:
-1. Start from `include_ids` if provided; otherwise start from all catalog entries.
-2. Apply `filters`.
-3. Apply `exclude_ids` last (highest priority).
-
-Example:
-
-```yaml
-name: core_io_network
-site_profile: repacss_zen4
-
-benchmark_selection:
-  include_ids: [ior, osu, hpl]
-  filters:
-    scope: component
-    target_subsystems_any: [storage, network]
-  exclude_ids: [quantum_espresso]
-
-run_matrix:
-  repeats: 5
-  warmup: 1
-  policies: [max_freq, everest]
+```text
+.
+|-- benchmark_recipes/    # one directory per benchmark; install.sh, run.sh, parse.sh
+|-- repacss_cluster/      # stable hardware facts and dynamic sinfo snapshots
+|-- repacss_runtime/      # shared REPACSS artifact helpers sourced by run.sh
+|-- benchmark_index/      # benchmark identity and classification only
+|-- operator_docs/        # architecture, install methods, artifact contract, and runbook
+|-- repo_tools/           # repository checks and maintenance tools
+`-- .github/workflows/    # CI layout and shell checks
 ```
 
-## Architecture Check (Current)
+## What Goes Where
 
-Current structure is now aligned to the separation-of-concerns goal:
-- `catalog/` = machine-readable benchmark registry and taxonomy vocabulary
-- `experiments/` = run subset and matrix definitions
-- `sites/` = site-specific scheduler/environment/runtime defaults
-- `benchmarks/` = per-benchmark adapter contract (`benchmark.yaml`) + executable site adapters
-- `scripts/` = repository guardrails and structural checks
-- `docs/guides/` = human-readable design rules
+| Path | Purpose |
+|---|---|
+| `benchmark_recipes/<id>/install.sh` | Show or perform benchmark installation/loading steps for REPACSS. |
+| `benchmark_recipes/<id>/run.sh` | Run the benchmark on REPACSS. Some are `sbatch` scripts; some run inside an allocation. |
+| `benchmark_recipes/<id>/parse.sh` | Parse raw benchmark logs into normalized summary artifacts. |
+| `benchmark_recipes/<id>/recipe.yaml` | REPACSS run metadata for that benchmark. |
+| `benchmark_recipes/<id>/inputs/` | Small or smoke-test inputs that belong with the benchmark recipe. |
+| `repacss_runtime/artifacts.sh` | Shared run-directory and normalized artifact helper functions. |
+| `repacss_cluster/hardware.yaml` | Stable REPACSS partition hardware facts used when choosing benchmark parameters. |
+| `repacss_cluster/modules.yaml` | REPACSS system module inventory used when choosing install methods and dependencies. |
+| `repacss_cluster/sinfo_snapshot.txt` | Example scheduler-state snapshot; use live `sinfo` before launching jobs. |
+| `benchmark_index/benchmarks.yaml` | Benchmark classification: what each benchmark is and what it measures. |
+| `operator_docs/install_methods.md` | Install method model: system modules, user Spack, user source builds, and user Conda. |
+| `operator_docs/runbook.md` | Operator-facing commands for installing and running benchmarks. |
+| `repo_tools/check_repo_layout.sh` | Layout check for this simplified structure. |
 
-Remaining optimization target:
-- move per-site execution details out of benchmark entries (`catalog/benchmarks.yaml`) into adapters plus `sites/` resolution rules over time.
+## Supported Benchmarks
 
-Quick check command:
+| Benchmark | Status | Default partition | Default install | Run mode |
+|---|---|---|---|---|
+| HPL | ready | `zen4` | `user_spack` | launcher inside an allocation |
+| OSU Micro-Benchmarks | ready | `zen4` | `user_source` | launcher inside an allocation |
+| IOR | ready | `zen4` | `user_spack` | Slurm batch script |
+| LAMMPS | ready | `zen4` | `user_spack` | Slurm batch script |
+| Quantum Espresso | experimental | `zen4` | `user_spack` | launcher inside an allocation |
+
+## Quick Start
+
+Check the repository layout:
+
 ```bash
-bash scripts/check_repo_layout.sh
+bash repo_tools/check_repo_layout.sh
 ```
 
-CI guardrail:
-- `.github/workflows/repo-layout-check.yml` runs layout and script checks on push and pull requests.
+Check static partition facts and live scheduler state:
 
-## Repository Layout (Current)
-
-| Path | Question It Answers | Purpose | Design Mapping |
-|---|---|---|---|
-| `catalog/` | `What is it` | Machine-readable benchmark registry and taxonomy vocabulary. | Experiment Contract + Taxonomy |
-| `catalog/benchmarks.yaml` | `What is it` | Full list of supported benchmarks and normalized metadata entries, including `benchmark_file` pointers to local adapter contracts. | Experiment Contract |
-| `catalog/taxonomy.schema.yaml` | `What is it (classification rules)` | Controlled vocabulary for fields/enums used by benchmark entries. | Taxonomy Governance |
-| `experiments/` | `What to run` | Run-specific subset definitions and parameter matrices. | Experiment Contract (run instance) |
-| `experiments/core_subset.yaml` | `What to run in this study` | Example subset selecting benchmarks and run matrix values. | Experiment Selection |
-| `sites/` | `Where and how to run` | Site-specific execution profiles with scheduler/runtime defaults. | Site Profile |
-| `sites/repacss_h100.yaml` | `How to run on REPACSS H100` | REPACSS GPU-node defaults (partition/resources/runtime backend). | Site Profile |
-| `sites/repacss_zen4.yaml` | `How to run on REPACSS Zen4` | REPACSS CPU-node defaults (partition/resources/runtime backend). | Site Profile |
-| `benchmarks/` | `How execution and parsing work` | Benchmark adapters and helper scripts for prepare/run/parse behavior. | Workload Adapter |
-| `benchmarks/<id>/benchmark.yaml` | `How benchmark-local adapter entry points are declared` | Site-agnostic benchmark-local metadata with adapter mapping. | Workload Adapter Contract |
-| `benchmarks/<id>/adapters/repacss/{prepare,run,parse}.sh` | `How a specific benchmark runs on REPACSS` | REPACSS-specific prepare/run/parse adapter implementation. | Workload Adapter |
-| `benchmarks/templates/` | `How shared job templates are defined` | Adapter-first Slurm template examples that separate site-dependent and site-independent settings. | Site Profile Integration |
-| `scripts/check_repo_layout.sh` | `Is the repository structure still valid` | Validates adapter contract, catalog script paths, and benchmark id registration. | Repository Guardrail |
-| `docs/guides/benchmark_taxonomy.md` | `Why this design` | Human-readable design rules and classification principles. | Design Documentation |
-| `external/Repacss-power-profiling/` | `What to integrate for power` | External submodule for power/infrastructure telemetry workflows. | External Integration |
-| `README.md` | `Entry point` | Repository-wide architecture, scope, and usage entry point. | Governance + Onboarding |
-
-## REPACSS Quick Start (Run Now)
-
-### Prerequisites
-- Slurm access on REPACSS
-- MPI runtime available on target partition
-- Benchmark binaries available by one of:
-  - module
-  - spack
-  - source build in user space
-
-### Install Helpers
-
-OSU:
 ```bash
-bash benchmarks/osu/adapters/repacss/prepare.sh module
-# or
-bash benchmarks/osu/adapters/repacss/prepare.sh spack
-# or
-bash benchmarks/osu/adapters/repacss/prepare.sh source
+less repacss_cluster/hardware.yaml
+sinfo -p zen4,h100,h100-build,mi210
 ```
 
-HPL:
+Check module inventory and live module state:
+
 ```bash
-bash benchmarks/hpl/adapters/repacss/prepare.sh module
-# or
-bash benchmarks/hpl/adapters/repacss/prepare.sh spack
-# or
-bash benchmarks/hpl/adapters/repacss/prepare.sh source
+less repacss_cluster/modules.yaml
+module avail
 ```
 
-### Run IOR on Zen4
+Use the recipe default install method:
 
-`benchmarks/ior/adapters/repacss/run.sh` is a complete Slurm batch job.
-Before submission, ensure these directories are set in your shell or directly in the script:
-- `MEM_IO`
-- `LOCAL_IO`
-- `NFS_IO`
-
-Submit:
 ```bash
-sbatch benchmarks/ior/adapters/repacss/run.sh
+bash benchmark_recipes/hpl/install.sh spack
+bash benchmark_recipes/osu/install.sh source
+bash benchmark_recipes/ior/install.sh spack
 ```
 
-### Run LAMMPS on Zen4
+Run batch-style benchmarks:
 
-Submit:
 ```bash
-sbatch benchmarks/lammps/adapters/repacss/run.sh
+sbatch benchmark_recipes/ior/run.sh
+sbatch benchmark_recipes/lammps/run.sh
 ```
 
-Notes:
-- Script currently expects LAMMPS from Spack (`spack load lammps`)
-- Script currently uses `~/data` as working directory
+Run launcher-style benchmarks inside a REPACSS allocation:
 
-### Run HPL
-
-`benchmarks/hpl/adapters/repacss/run.sh` is a launcher wrapper (not a full Slurm script).
-Use it inside an allocation or from your own batch script.
-
-Example:
 ```bash
-# inside an allocated job shell
-module load hpl
-bash benchmarks/hpl/adapters/repacss/run.sh 4 /path/to/HPL.dat
+bash benchmark_recipes/hpl/install.sh spack
+spack load hpl
+bash benchmark_recipes/hpl/run.sh 4 benchmark_recipes/hpl/inputs/hpl/HPL-small.dat
+
+bash benchmark_recipes/osu/install.sh source
+export PATH="$HOME/opt/osu-micro-benchmarks/bin:$PATH"
+bash benchmark_recipes/osu/run.sh osu_latency 2
 ```
 
-### Run OSU
+See `operator_docs/runbook.md` for the full operator workflow.
 
-`benchmarks/osu/adapters/repacss/run.sh` is a launcher wrapper.
+See `operator_docs/install_methods.md` for the install model. System modules may provide a complete benchmark or only the compiler, MPI, math, CUDA, and profiling dependencies needed for a user-owned install.
 
-Example:
+## Single-Benchmark Parameters
+
+Each benchmark is configured in two places:
+
+1. `benchmark_recipes/<id>/recipe.yaml` records stable defaults: partition, run mode, install method, dataset profiles, required input files, and example run arguments.
+2. `benchmark_recipes/<id>/run.sh` accepts runtime parameters through command-line arguments and environment variables.
+
+Use `recipe.yaml` first to understand the intended shape:
+
 ```bash
-# inside an allocated job shell
-module load osu-micro-benchmarks
-bash benchmarks/osu/adapters/repacss/run.sh osu_latency 2
+less benchmark_recipes/hpl/recipe.yaml
+less benchmark_recipes/ior/recipe.yaml
 ```
 
-## Output Contract
+Common experiment identity variables are shared by all recipes:
 
-Per-run normalized artifacts:
-- `meta.json`
-- `telemetry.csv`
-- `decisions.csv`
-- `summary.json`
+```bash
+export EXPERIMENT_ID=repacss-smoke-2026-06-18
+export DATASET_ID=small
+export DATASET_ROOT=$HOME/data/repacss-benchmarks
+export RUN_ROOT=$DATASET_ROOT/runs
+export SITE_PROFILE=repacss_zen4
+```
 
-Raw artifacts remain benchmark-native (for example Slurm logs and benchmark logs) and are stored under each run's `raw/` directory.
+Benchmark-specific parameters stay close to each recipe:
 
-Recommended aggregate output:
-- `results.csv`
+```bash
+# HPL: positional arguments
+bash benchmark_recipes/hpl/run.sh 4 benchmark_recipes/hpl/inputs/hpl/HPL-small.dat
 
-This contract allows new policies/methods to be added without changing downstream analysis code.
+# OSU: positional arguments
+bash benchmark_recipes/osu/run.sh osu_latency 2
 
-## REPACSS-First, Then Portable
+# IOR: environment variables for a Slurm batch recipe
+IOR_TARGETS=MEM_IO,LOCAL_IO \
+IOR_NUM_PROCS=1,16,64 \
+IOR_BLOCKSIZES=64g,1g,256m \
+sbatch benchmark_recipes/ior/run.sh
 
-To avoid over-abstracting too early, use a phased approach:
+# LAMMPS: environment variables for input and rank sweep
+DATASET_ID=small \
+LAMMPS_INPUT=benchmark_recipes/lammps/inputs/lj/in.lj \
+LAMMPS_RANKS=256,128,64,32 \
+sbatch benchmark_recipes/lammps/run.sh
 
-### Phase A (immediate)
-- Run on existing REPACSS H100/Zen4 resources
-- Start with easiest benchmarks already available via modules
-- Validate end-to-end run reliability and output collection
+# Quantum Espresso: environment variables or positional override
+QE_NP=4 \
+QE_INPUT_FILE=benchmark_recipes/quantum-espresso/inputs/si/si_sssp.scf.in \
+bash benchmark_recipes/quantum-espresso/run.sh
+```
 
-### Phase B
-- Fill missing benchmark install paths (spack/source)
-- Expand benchmark coverage gradually
-- Start introducing config-driven matrix expansion
+Production inputs should live under `DATASET_ROOT`, not inside the repository:
 
-### Phase C
-- Add AMD test node profile
-- Reuse same experiment contract for cross-vendor runs
-- Keep power as optional external join in analysis
+```text
+$DATASET_ROOT/
+|-- hpl/HPL.dat
+|-- lammps/in.lj
+|-- quantum-espresso/si_long_md.in
+`-- ior_nfs/
+```
 
-## Extension Plan for Other Data Centers
+## Multiple-Benchmark Experiments
 
-When porting to a new site:
-1. Keep benchmark definitions and experiment matrix unchanged
-2. Add a new profile under `sites/` (scheduler + software resolution + launcher conventions)
-3. Adjust benchmark `prepare()` only where site software layout differs
-4. Keep output schema unchanged
+Use one `EXPERIMENT_ID` for the whole experiment. Each recipe will write its own run directory under the same experiment tree:
 
-This minimizes migration effort and preserves reproducibility.
+```text
+$RUN_ROOT/$EXPERIMENT_ID/$SITE_PROFILE/
+|-- hpl/<run_id>/
+|-- osu/<run_id>/
+|-- ior/<run_id>/
+`-- lammps/<run_id>/
+```
 
-## External Power Integration
+For a small manual run, choose benchmarks with a shell array and dispatch each recipe explicitly:
 
-This repo can be paired with external power data after runs complete.
-Suggested workflow:
-1. Run benchmark jobs from this repository
-2. Collect power/infrastructure data from `Repacss-power-profiling`
-3. Join by job id / node / timestamp window in post-processing
+```bash
+export EXPERIMENT_ID=repacss-smoke-2026-06-18
+export DATASET_ID=small
+export DATASET_ROOT=$HOME/data/repacss-benchmarks
+export RUN_ROOT=$DATASET_ROOT/runs
+export SITE_PROFILE=repacss_zen4
 
-## Practical Notes
+selected_benchmarks=(hpl osu ior lammps)
 
-- `benchmarks/quantum-espresso/adapters/repacss/run.sh` is currently a placeholder.
-- Legacy wrapper paths (`run_*_repacss.sh`, `install_*`) are kept for compatibility and forward to `adapters/repacss/`.
-- The active taxonomy and design rules are documented in `docs/guides/benchmark_taxonomy.md`.
-- The experiment-subset pattern is documented in `experiments/README.md`.
-- Site profile conventions are documented in `sites/README.md`.
+for bench in "${selected_benchmarks[@]}"; do
+  case "$bench" in
+    hpl)
+      spack load hpl
+      bash benchmark_recipes/hpl/run.sh 4 benchmark_recipes/hpl/inputs/hpl/HPL-small.dat
+      ;;
+    osu)
+      export PATH="$HOME/opt/osu-micro-benchmarks/bin:$PATH"
+      bash benchmark_recipes/osu/run.sh osu_latency 2
+      ;;
+    ior)
+      IOR_TARGETS=MEM_IO,LOCAL_IO IOR_NUM_PROCS=1,16,64 sbatch benchmark_recipes/ior/run.sh
+      ;;
+    lammps)
+      DATASET_ID=small LAMMPS_RANKS=256,128,64,32 sbatch benchmark_recipes/lammps/run.sh
+      ;;
+    *)
+      echo "Unknown benchmark: $bench" >&2
+      exit 1
+      ;;
+  esac
+done
+```
 
-## License
+Keep multi-benchmark scripts thin. They should select recipes, set experiment-level environment variables, and call each recipe's `install.sh` or `run.sh`; they should not duplicate benchmark-specific launch logic from `benchmark_recipes/<id>/run.sh`.
 
-BSD 3-Clause. See `LICENSE`.
+## Run Artifacts
+
+Each `run.sh` writes:
+
+- `raw/` for benchmark-native logs and copied inputs
+- `normalized/meta.json` for benchmark, job, node, and run identity
+- `normalized/telemetry.csv` for normalized performance observations
+- `normalized/decisions.csv` for resolved options and inputs
+- `normalized/summary.json` for parsed benchmark-specific results
+
+See `operator_docs/artifact_contract.md` for field-level expectations.
+
+## Boundaries
+
+This repository owns benchmark install/run/parse recipes. It does not own power telemetry, TimescaleDB queries, infrastructure monitoring, energy accounting, DVFS policy logic, or data-center portability.
+
+Power data can be joined later by downstream analysis using `job_id`, node list, and run timestamps from the normalized artifacts.
+
+This repository intentionally does not carry project-level assistant rule files. Reusable language policy and assistant behavior are inherited from global configuration.

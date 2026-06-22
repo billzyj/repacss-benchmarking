@@ -1,0 +1,98 @@
+version: 1
+purpose: repacss_benchmark_classification
+
+benchmarks:
+  - id: hpl
+    name: High Performance Linpack
+    recipe_file: benchmark_recipes/hpl/recipe.yaml
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: system
+      target_subsystems: [cpu, memory, network]
+      workload_nature: synthetic
+      application_domain: linear_algebra
+      method_type: dense_la
+      characteristics: [compute, communication, memory_access]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c, fortran]
+      metrics_primary: [flops, time_to_solution]
+      portability: cpu_only
+
+  - id: osu
+    name: OSU Micro-Benchmarks
+    recipe_file: benchmark_recipes/osu/recipe.yaml
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: component
+      target_subsystems: [network]
+      workload_nature: synthetic
+      application_domain: communication
+      method_type: mpi_microbench
+      characteristics: [communication]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c]
+      metrics_primary: [latency, bandwidth]
+      portability: cross_vendor
+
+  - id: ior
+    name: IOR
+    recipe_file: benchmark_recipes/ior/recipe.yaml
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: component
+      target_subsystems: [storage]
+      workload_nature: synthetic
+      application_domain: io
+      method_type: parallel_io
+      characteristics: [io, communication]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c]
+      metrics_primary: [bandwidth, throughput]
+      portability: cross_vendor
+
+  - id: lammps
+    name: LAMMPS
+    recipe_file: benchmark_recipes/lammps/recipe.yaml
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: system
+      target_subsystems: [mixed]
+      workload_nature: real_app
+      application_domain: md
+      method_type: particle_simulation
+      characteristics: [compute, communication, memory_access]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [c++]
+      metrics_primary: [time_to_solution, throughput]
+      portability: cross_vendor
+
+  - id: quantum_espresso
+    name: Quantum Espresso
+    recipe_file: benchmark_recipes/quantum-espresso/recipe.yaml
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: system
+      target_subsystems: [mixed]
+      workload_nature: real_app
+      application_domain: chemistry
+      method_type: electronic_structure
+      characteristics: [compute, communication, memory_access]
+    execution:
+      benchmark_scale: both
+      programming_models: [mpi]
+      programming_languages: [fortran, c]
+      metrics_primary: [time_to_solution]
+      portability: cross_vendor

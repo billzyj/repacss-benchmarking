@@ -1,0 +1,14 @@
+# REPACSS sinfo snapshot
+# Captured: 2026-06-18
+# This is scheduler state, not immutable hardware inventory.
+
+PARTITION  AVAIL  TIMELIMIT  NODES  STATE NODELIST
+zen4*         up   infinite     40   resv rpc-96-[1-20],rpc-97-[1-20]
+zen4*         up   infinite      5    mix rpc-91-[1,8,17],rpc-92-6,rpc-95-1
+zen4*         up   infinite     11  alloc rpc-91-[6,9-16,18-19]
+zen4*         up   infinite     54   idle rpc-91-[2-5,7,20],rpc-92-[1-5,7-20],rpc-94-[1-20],rpc-95-[2-10]
+h100          up   infinite      1   resv rpg-93-8
+h100          up   infinite      2    mix rpg-93-[1,7]
+h100          up   infinite      5   idle rpg-93-[2-6]
+h100-build    up   infinite      1   resv rpg-93-9
+mi210         up   infinite      2   idle rpg-92-[21-22]

@@ -1,0 +1,110 @@
+version: 1
+captured_on: 2026-06-18
+purpose: repacss_system_module_inventory
+
+partitions:
+  zen4:
+    module_root: /opt/apps/nfs/modules/zen4/rocky9.6/Core
+    available_modules:
+      - boost/1.88.0
+      - bwa/0.7.19
+      - clinfo/3.0.23.01.25
+      - dmtcp/3.0.0
+      - eigen/5.0.0
+      - ffmpeg/7.1
+      - gcc/15.2.0
+      - gdal/3.11.5
+      - geos/3.14.1
+      - gnuplot/6.0.0
+      - gsl/2.8
+      - htop/3.4.1
+      - imagemagick/7.1.1-39
+      - intel-oneapi-compilers/2025.3.0
+      - intel-oneapi-mkl/2024.2.2
+      - intel-oneapi-mpi/2021.17.0
+      - kokkos/4.7.01
+      - likwid/5.4.1-daemon
+      - likwid/5.4.1-perf
+      - metis/5.1.0
+      - mpich/4.3.2
+      - ninja/1.13.0
+      - ocl-icd/2.3.2
+      - openblas/0.3.30
+      - openmpi/4.1.8
+      - pocl/6.0
+      - proj/9.7.0
+      - qemu/10.1.0
+      - r/4.5.2
+      - rust/1.86.0
+      - samtools/1.21
+      - sparsehash/2.0.4
+      - swig/4.1.1
+      - tmux/3.5a
+    benchmark_or_perf_modules:
+      - likwid/5.4.1-perf
+    dependency_groups:
+      compilers:
+        - gcc/15.2.0
+        - intel-oneapi-compilers/2025.3.0
+      mpi:
+        - mpich/4.3.2
+        - openmpi/4.1.8
+        - intel-oneapi-mpi/2021.17.0
+      math:
+        - openblas/0.3.30
+        - intel-oneapi-mkl/2024.2.2
+        - gsl/2.8
+        - boost/1.88.0
+        - eigen/5.0.0
+      build_tools:
+        - ninja/1.13.0
+        - swig/4.1.1
+      performance_tools:
+        - likwid/5.4.1-perf
+        - likwid/5.4.1-daemon
+        - gnuplot/6.0.0
+
+  h100:
+    module_root: /opt/apps/nfs/modules/h100/rocky9.6/Core
+    available_modules:
+      - clinfo/3.0.23.01.25
+      - cuda/12.9.1
+      - cuda/13.0.2
+      - cudnn/9.8.0.87-12
+      - intel-oneapi-compilers/2025.3.1
+      - intel-oneapi-mkl/2024.2.2
+      - likwid/5.4.1-daemon
+      - likwid/5.4.1-perf
+      - mpich/4.3.2
+      - nccl/2.28.7-1
+      - nvhpc/25.7
+      - openblas/0.3.30
+      - opencl-headers/3.0
+      - openmpi/4.1.8
+      - pocl/6.0
+      - rust/1.86.0
+    benchmark_or_perf_modules:
+      - likwid/5.4.1-perf
+    dependency_groups:
+      compilers:
+        - intel-oneapi-compilers/2025.3.1
+        - nvhpc/25.7
+      gpu:
+        - cuda/13.0.2
+        - cuda/12.9.1
+        - cudnn/9.8.0.87-12
+        - nccl/2.28.7-1
+      mpi:
+        - mpich/4.3.2
+        - openmpi/4.1.8
+      math:
+        - openblas/0.3.30
+        - intel-oneapi-mkl/2024.2.2
+      performance_tools:
+        - likwid/5.4.1-perf
+        - likwid/5.4.1-daemon
+
+notes:
+  - Use this file as a module inventory snapshot, not as proof that a module is loaded in the current shell.
+  - A recipe may use system modules either for a benchmark binary or only for compiler, MPI, math, CUDA, or profiling dependencies.
+  - Check live module availability on REPACSS before launch with `module avail`.

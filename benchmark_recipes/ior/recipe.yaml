@@ -1,0 +1,38 @@
+id: ior
+name: IOR
+status: ready
+partition: zen4
+hardware_reference: repacss_cluster/hardware.yaml#partitions.zen4
+run_mode: slurm_batch
+classification_source: benchmark_index/benchmarks.yaml
+
+installation:
+  default_method: user_spack
+  supported_methods: [system_modules, user_spack, user_source]
+  system_modules:
+    role: dependency_stack
+    module_inventory: repacss_cluster/modules.yaml#partitions.zen4
+    benchmark_modules: []
+    dependency_modules:
+      - gcc/15.2.0
+      - mpich/4.3.2
+  user_spack:
+    package: ior
+  user_source:
+    upstream: https://github.com/hpc/ior.git
+
+commands:
+  install: install.sh
+  run: run.sh
+  parse: parse.sh
+
+dataset:
+  default_id: production
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      required_files: []
+      run_args: "IOR_TARGETS=MEM_IO,LOCAL_IO IOR_NUM_PROCS=1,16,64"
+    production:
+      required_files: []
+      run_args: "IOR_TARGETS=MEM_IO,LOCAL_IO,NFS_IO IOR_NUM_PROCS=1,64,256"

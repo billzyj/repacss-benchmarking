@@ -1,0 +1,39 @@
+id: osu
+name: OSU Micro-Benchmarks
+status: ready
+partition: zen4
+hardware_reference: repacss_cluster/hardware.yaml#partitions.zen4
+run_mode: launcher
+classification_source: benchmark_index/benchmarks.yaml
+
+installation:
+  default_method: user_source
+  supported_methods: [system_modules, user_spack, user_source]
+  system_modules:
+    role: dependency_stack
+    module_inventory: repacss_cluster/modules.yaml#partitions.zen4
+    benchmark_modules: []
+    dependency_modules:
+      - gcc/15.2.0
+      - openmpi/4.1.8
+  user_spack:
+    package: osu-micro-benchmarks
+  user_source:
+    upstream: https://github.com/OSU-MicroBenchmarks/osu-micro-benchmarks.git
+    prefix_env: OSU_PREFIX
+
+commands:
+  install: install.sh
+  run: run.sh
+  parse: parse.sh
+
+dataset:
+  default_id: small
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      required_files: []
+      run_args: "osu_latency 2"
+    production:
+      required_files: []
+      run_args: "osu_bw 256"

@@ -1,0 +1,42 @@
+id: hpl
+name: High Performance Linpack
+status: ready
+partition: zen4
+hardware_reference: repacss_cluster/hardware.yaml#partitions.zen4
+run_mode: launcher
+classification_source: benchmark_index/benchmarks.yaml
+
+installation:
+  default_method: user_spack
+  supported_methods: [system_modules, user_spack, user_source]
+  system_modules:
+    role: dependency_stack
+    module_inventory: repacss_cluster/modules.yaml#partitions.zen4
+    benchmark_modules: []
+    dependency_modules:
+      - gcc/15.2.0
+      - openmpi/4.1.8
+      - openblas/0.3.30
+  user_spack:
+    package: hpl
+  user_source:
+    upstream: https://github.com/icl-utk-edu/hpl.git
+    prefix_env: HPL_PREFIX
+
+commands:
+  install: install.sh
+  run: run.sh
+  parse: parse.sh
+
+dataset:
+  default_id: small
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      required_files:
+        - inputs/hpl/HPL-small.dat
+      run_args: "<np> inputs/hpl/HPL-small.dat"
+    production:
+      required_files:
+        - "${DATASET_ROOT}/hpl/HPL.dat"
+      run_args: "<np> ${DATASET_ROOT}/hpl/HPL.dat"

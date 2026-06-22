@@ -1,0 +1,126 @@
+version: 1
+scope: repacss_partition_hardware_reference
+last_verified: 2026-06-18
+update_policy: "Update only when REPACSS hardware inventory or Slurm partition definitions change."
+
+partitions:
+  zen4:
+    system: PowerEdge R7625
+    scheduler:
+      partition: zen4
+      node_prefix: rpc
+    cpu:
+      model: AMD EPYC 9754
+      sockets: 2
+      cores_per_socket: 128
+      total_cores: 256
+      l1d_cache: 8 MiB
+      l1i_cache: 8 MiB
+      l2_cache: 256 MiB
+      l3_cache: 512 MiB
+      l3_instances: 32
+      numa_nodes: 8
+    gpu:
+      count: 0
+      model: none
+    memory:
+      capacity_gb: 1536
+      type: DDR5
+      dimms: "24 x 64GB"
+      speed_mt_s: 4800
+    storage:
+      - "1TB PCIe SSD for /tmp"
+      - "1TB PCIe SSD for swap"
+    benchmark_notes:
+      - "CPU benchmark recipes may use up to 256 MPI ranks per node when exclusive."
+      - "Use live sinfo to choose available nodes; this file only records hardware shape."
+
+  h100:
+    system: PowerEdge R760xa
+    scheduler:
+      partition: h100
+      node_prefix: rpg
+    cpu:
+      model: Intel Xeon Gold 6448Y
+      sockets: 2
+      cores_per_socket: 32
+      total_cores: 64
+      l1d_cache: 3 MiB
+      l1i_cache: 2 MiB
+      l2_cache: 128 MiB
+      l3_cache: 120 MiB
+      l3_instances: 2
+      numa_nodes: 4
+    gpu:
+      count: 4
+      model: NVIDIA H100 NVL
+      memory_per_gpu_gb: 94
+    memory:
+      capacity_gb: 512
+      type: DDR5
+      dimms: "16 x 32GB"
+      speed_mt_s: 4800
+      raw_note: "32avail 515477"
+    storage:
+      - "2 x 500GB NVMe PCIe"
+      - "2 x 2TB SAS SSD"
+    benchmark_notes:
+      - "GPU benchmark recipes should account for 4 H100 NVL GPUs per node."
+      - "Use live sinfo to choose idle or mixed nodes before launch."
+
+  h100-build:
+    system: PowerEdge R760xa
+    scheduler:
+      partition: h100-build
+      node_prefix: rpg
+    cpu:
+      model: Intel Xeon Gold 6426Y
+      sockets: 2
+      cores_per_socket: 16
+      total_cores: 32
+      l1d_cache: 1.5 MiB
+      l1i_cache: 1 MiB
+      l2_cache: 64 MiB
+      l3_cache: 75 MiB
+      l3_instances: 2
+      numa_nodes: 2
+    gpu:
+      count: 2
+      model: NVIDIA H100 NVL
+      memory_per_gpu_gb: 94
+    memory:
+      capacity_gb: 512
+      type: DDR5
+      dimms: "16 x 32GB"
+      speed_mt_s: 4800
+      raw_note: "32avail 515484"
+    storage:
+      - "2 x 500GB NVMe PCIe"
+      - "2 x 2TB SAS SSD"
+    benchmark_notes:
+      - "Treat this as a build or preparation partition unless a benchmark explicitly targets it."
+
+  mi210:
+    system: AMD PowerEdge R7615
+    scheduler:
+      partition: mi210
+      node_prefix: rpg
+    cpu:
+      model: AMD EPYC 9354P
+      sockets: 1
+      cores_per_socket: 32
+      total_cores: 32
+      threads_per_core: 2
+    gpu:
+      count: 2
+      model: AMD MI210
+    memory:
+      capacity_gb: 512
+      dimms: "8 x 64GB"
+      raw_note: "12avail 515340"
+    storage:
+      - "2 x 1TB NVMe PCIe"
+      - "8 x 8TB"
+    benchmark_notes:
+      - "Use this partition for AMD GPU benchmark work and ROCm-specific recipes."
+      - "Check live sinfo and ROCm environment before launch."

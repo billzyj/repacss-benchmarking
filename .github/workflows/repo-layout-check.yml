@@ -20,8 +20,8 @@ jobs:
 
       - name: Shell script syntax check
         run: |
-          find benchmarks scripts -name '*.sh' -print0 | xargs -0 bash -n
+          find benchmark_recipes repacss_runtime repo_tools -name '*.sh' -print0 | xargs -0 bash -n
 
       - name: Repository structure check
         run: |
-          bash scripts/check_repo_layout.sh
+          bash repo_tools/check_repo_layout.sh

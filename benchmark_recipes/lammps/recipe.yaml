@@ -1,0 +1,40 @@
+id: lammps
+name: LAMMPS
+status: ready
+partition: zen4
+hardware_reference: repacss_cluster/hardware.yaml#partitions.zen4
+run_mode: slurm_batch
+classification_source: benchmark_index/benchmarks.yaml
+
+installation:
+  default_method: user_spack
+  supported_methods: [system_modules, user_spack, user_source]
+  system_modules:
+    role: dependency_stack
+    module_inventory: repacss_cluster/modules.yaml#partitions.zen4
+    benchmark_modules: []
+    dependency_modules:
+      - gcc/15.2.0
+      - openmpi/4.1.8
+  user_spack:
+    package: lammps
+  user_source:
+    upstream: https://github.com/lammps/lammps.git
+
+commands:
+  install: install.sh
+  run: run.sh
+  parse: parse.sh
+
+dataset:
+  default_id: small
+  root_env: DATASET_ROOT
+  profiles:
+    small:
+      required_files:
+        - inputs/lj/in.lj
+      run_args: "LAMMPS_INPUT=inputs/lj/in.lj"
+    production:
+      required_files:
+        - "${DATASET_ROOT}/lammps/in.lj"
+      run_args: "LAMMPS_INPUT=${DATASET_ROOT}/lammps/in.lj"
