@@ -1,0 +1,39 @@
+id: babelstream
+name: BabelStream CUDA memory bandwidth
+status: experimental
+partition: h100
+hardware_reference: repacss_cluster/hardware.yaml#partitions.h100
+classification_source: benchmark_index/benchmarks.yaml
+run_mode: launcher
+installation:
+  default_method: user_source
+  supported_methods: [user_source]
+  user_source:
+    upstream: https://github.com/UoB-HPC/BabelStream.git
+    commit: 17ab377b0e919e14fd3df2b67268761fdac8abb3
+    build_definition: upstream.json
+    default_action: print_plan
+    execute_argument: source --execute
+    cuda_arch: sm_90
+    dependency_inventory: repacss_cluster/modules.yaml#partitions.h100
+commands:
+  install: install.sh
+  run: run.sh
+  parse: parse.sh
+dataset:
+  default_id: smoke
+  profiles:
+    smoke:
+      definition: upstream.json#profiles.smoke
+    hbm:
+      definition: upstream.json#profiles.hbm
+    hbm-long:
+      definition: upstream.json#profiles.hbm-long
+    hbm-large:
+      definition: upstream.json#profiles.hbm-large
+scientific_boundary:
+  validation: built_and_run_on_h100_2026-11-10
+  clock_actuation: external_controller_only
+  energy_source: external_time_aligned_board_telemetry_required
+  profile_changes: freeze_before_frequency_sweep
+  timing: whole_process_and_upstream_metrics_stored_separately

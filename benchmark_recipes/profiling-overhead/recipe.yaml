@@ -1,0 +1,34 @@
+id: power_report_checks
+name: Job power-report checks (in-band and out-of-band)
+status: experimental
+partition: zen4
+hardware_reference: repacss_cluster/hardware.yaml#partitions.zen4
+run_mode: slurm_batch
+classification_source: benchmark_index/benchmarks.yaml
+
+installation:
+  default_method: system_modules
+  supported_methods: [system_modules, user_source]
+  system_modules:
+    role: complete_benchmark
+    module_inventory: repacss_cluster/modules.yaml#partitions.zen4
+    benchmark_modules: [lammps/20250722]
+    dependency_modules: [mpich/4.3.2, openblas/0.3.30]
+  user_source:
+    note: the GPU job uses the babelstream recipe (install.sh --execute builds it)
+
+commands:
+  install: install.sh
+  run: run.sh
+  parse: parse.sh
+
+jobs:
+  cpu:
+    script: zen4_lammps.sbatch
+    partition: zen4
+    workload: LAMMPS Lennard-Jones liquid, 32,000 atoms, 256 ranks, two runs
+    input: inputs/in.lj
+  gpu:
+    script: h100_babelstream.sbatch
+    partition: h100
+    workload: BabelStream hbm-long profile on one GPU

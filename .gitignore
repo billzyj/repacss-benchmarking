@@ -32,3 +32,13 @@ dist/
 benchmark_recipes/lammps/*.lammps
 benchmark_recipes/lammps/sim.chk.*
 benchmark_recipes/quantum-espresso/data/
+
+# Local experiment evidence, conversations and intermediate reports
+/Output/
+
+# Legacy local paths retained only as ignored compatibility aliases
+/runs
+/benchmarks
+
+# Site-generated Slurm node lists
+/machinefile.*

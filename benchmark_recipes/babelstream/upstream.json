@@ -1,0 +1,115 @@
+{
+  "id": "babelstream",
+  "name": "BabelStream CUDA memory bandwidth",
+  "license": "STREAM-derived custom license; see upstream LICENSE and Run Rules",
+  "builder": "cmake",
+  "binary": "compiled/cuda-stream",
+  "survey_relation": "Direct benchmark entry: benchmarks.babelstream",
+  "reference": "Deakin, T., Price, J., Martineau, M., and McIntosh-Smith, S. Evaluating attainable memory bandwidth of parallel programming models via BabelStream. IJCSE 17(3), 247\u2013262 (2018).",
+  "reference_url": "https://doi.org/10.1504/IJCSE.2018.095847",
+  "profiles": {
+    "smoke": {
+      "argv": [
+        "--device",
+        "0",
+        "--arraysize",
+        "1048576",
+        "--numtimes",
+        "10",
+        "--csv"
+      ],
+      "elements_per_array": 1048576,
+      "array_count": 3,
+      "element_bytes": 8,
+      "iterations": 10,
+      "gpu_count": 1,
+      "expected_kernels": [
+        "Copy",
+        "Mul",
+        "Add",
+        "Triad",
+        "Dot"
+      ],
+      "note": "24 MiB total; functional check only, may fit in cache"
+    },
+    "hbm": {
+      "argv": [
+        "--device",
+        "0",
+        "--arraysize",
+        "268435456",
+        "--numtimes",
+        "100",
+        "--csv"
+      ],
+      "elements_per_array": 268435456,
+      "array_count": 3,
+      "element_bytes": 8,
+      "iterations": 100,
+      "gpu_count": 1,
+      "expected_kernels": [
+        "Copy",
+        "Mul",
+        "Add",
+        "Triad",
+        "Dot"
+      ],
+      "note": "6 GiB total; candidate HBM experiment; verify bandwidth plateau and kernel duration"
+    },
+    "hbm-long": {
+      "argv": [
+        "--device",
+        "0",
+        "--arraysize",
+        "268435456",
+        "--numtimes",
+        "20000",
+        "--csv"
+      ],
+      "elements_per_array": 268435456,
+      "array_count": 3,
+      "element_bytes": 8,
+      "iterations": 20000,
+      "gpu_count": 1,
+      "expected_kernels": [
+        "Copy",
+        "Mul",
+        "Add",
+        "Triad",
+        "Dot"
+      ],
+      "note": "6 GiB total, 20,000 iterations (about 2.5 min on one H100); a sustained load for power-report checks"
+    },
+    "hbm-large": {
+      "argv": [
+        "--device",
+        "0",
+        "--arraysize",
+        "536870912",
+        "--numtimes",
+        "100",
+        "--csv"
+      ],
+      "elements_per_array": 536870912,
+      "array_count": 3,
+      "element_bytes": 8,
+      "iterations": 100,
+      "gpu_count": 1,
+      "expected_kernels": [
+        "Copy",
+        "Mul",
+        "Add",
+        "Triad",
+        "Dot"
+      ],
+      "note": "12 GiB total; size-sensitivity companion to hbm"
+    }
+  },
+  "repository": "https://github.com/UoB-HPC/BabelStream.git",
+  "commit": "17ab377b0e919e14fd3df2b67268761fdac8abb3",
+  "source_review_date": "2026-09-21",
+  "survey_source": "https://github.com/FZJ-JSC/benchmark-survey/blob/34c82039381af95c214d37f67e7538a2e8178aed/benchmarks.yaml",
+  "validation_status": "not_built_not_tested",
+  "backend": "cuda",
+  "default_architecture": "sm_90"
+}

@@ -96,3 +96,41 @@ benchmarks:
       programming_languages: [fortran, c]
       metrics_primary: [time_to_solution]
       portability: cross_vendor
+
+  - id: babelstream
+    name: BabelStream CUDA memory bandwidth
+    recipe_file: benchmark_recipes/babelstream/recipe.yaml
+    object:
+      artifact_type: benchmark
+    semantics:
+      scope: component
+      target_subsystems: [gpu, memory]
+      workload_nature: synthetic
+      application_domain: memory_bandwidth
+      method_type: stream
+      characteristics: [regular_memory_access, high_memory_bandwidth]
+    execution:
+      benchmark_scale: single_gpu
+      programming_models: [cuda]
+      programming_languages: [c++]
+      metrics_primary: [bandwidth, kernel_runtime]
+      portability: nvidia_cuda
+
+  - id: power_report_checks
+    name: Job power-report checks (in-band and out-of-band)
+    recipe_file: benchmark_recipes/profiling-overhead/recipe.yaml
+    object:
+      artifact_type: test_harness
+    semantics:
+      scope: system
+      target_subsystems: [cpu, gpu, memory]
+      workload_nature: mixed
+      application_domain: power_measurement
+      method_type: functional_check
+      characteristics: [compute, high_memory_bandwidth]
+    execution:
+      benchmark_scale: single_node
+      programming_models: [mpi, cuda]
+      programming_languages: [c++]
+      metrics_primary: [report_delivery, energy]
+      portability: repacss_only
